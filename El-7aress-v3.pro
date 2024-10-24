@@ -1,5 +1,5 @@
 QT       += core gui  serialbus serialport   openglwidgets
-# git token : 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
+
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 CONFIG += c++17
 

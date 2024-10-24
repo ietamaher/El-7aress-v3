@@ -28,13 +28,13 @@ public:
     PLCSensorInterface* getPLCSensorInterface() const;
 
     // Other methods remain the same
-    void activateSensors(bool activate);
-    void activateLRF();
-    void deactivateLRF();
-    void enableStabilization();
-    void disableStabilization();
-    void activateTrackingSensors(bool activate);
-    void activateEngagementSensors(bool activate);
+    //void activateSensors(bool activate);
+    //void activateLRF();
+    //void deactivateLRF();
+    //void enableStabilization();
+    //void disableStabilization();
+    //void activateTrackingSensors(bool activate);
+    //void activateEngagementSensors(bool activate);
 
     void getGyroRates(double& Roll, double& Pitch, double& Yaw);
 

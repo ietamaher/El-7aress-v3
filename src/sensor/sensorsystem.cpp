@@ -9,7 +9,6 @@ SensorSystem::SensorSystem(QObject *parent)
     m_sensorsActive(false),
     m_lrfActive(false),
     m_stabilizationEnabled(false),
-    m_lrfInterface(new LRFInterface(this)),
     m_gyroInterface(new GyroInterface(this)),
     m_radarInterface(new RadarInterface(this)),
     m_plcSensorInterface(nullptr),
@@ -64,7 +63,10 @@ SensorSystem::~SensorSystem()
 {
     //m_lrfThread->quit();
     //m_lrfThread->wait();
-    delete m_lrfInterface;
+    if (m_lrfInterface) {
+        delete m_lrfInterface;
+        m_lrfInterface = nullptr;
+    }
 }
 
 // Setter methods
@@ -119,13 +121,6 @@ PLCSensorInterface* SensorSystem::getPLCSensorInterface() const {
     return m_plcSensorInterface;
 }
 
-void SensorSystem::activateSensors(bool activate)
-{
-    m_sensorsActive = activate;
-    // Activate other sensors if necessary
-}
-
-
 void SensorSystem::startMonitoringSensors() {
     if (m_plcSensorInterface) {
         m_plcSensorInterface->startMonitoring();
@@ -138,35 +133,7 @@ void SensorSystem::stopMonitoringSensors() {
     }
 }
 
-void SensorSystem::activateLRF()
-{
-    if (!m_sensorsActive)
-        return;
-
-    m_lrfActive = true;
-    sendContinuousRanging();
-}
-
-void SensorSystem::deactivateLRF()
-{
-    m_lrfActive = false;
-    stopRanging();
-}
-
-
-void SensorSystem::enableStabilization() {
-    m_stabilizationEnabled = true;
-    // Start gyro data acquisition
-    m_gyroInterface->start();
-}
-
-void SensorSystem::disableStabilization() {
-    m_stabilizationEnabled = false;
-    // Stop gyro data acquisition
-    m_gyroInterface->stop();
-}
-
-
+// Methods for GYRO
 void SensorSystem::getGyroRates(double& Roll, double& Pitch, double& Yaw) {
     Roll = m_roll;
     Pitch = m_pitch;
@@ -180,35 +147,9 @@ void SensorSystem::onGyroDataReceived(double Roll, double Pitch, double Yaw) {
     emit gyroDataUpdated(m_roll, m_pitch, m_yaw);
 }
 
-void SensorSystem::activateTrackingSensors(bool activate)
-{
-    m_trackingSensorsActive = activate;
-    if (activate) {
-        // Activate sensors needed for tracking
-        qDebug() << "Tracking sensors activated.";
-        // For example, start receiving data from tracking sensors
-    } else {
-        // Deactivate tracking sensors
-        qDebug() << "Tracking sensors deactivated.";
-        // Stop receiving data from tracking sensors
-    }
-}
+// Methods for RADAR
+// to implment ...
 
-void SensorSystem::activateEngagementSensors(bool activate)
-{
-    m_engagementSensorsActive = activate;
-    if (activate) {
-        // Activate sensors needed for engagement
-        qDebug() << "Engagement sensors activated.";
-        // For example, prepare LRF or other engagement-related sensors
-        activateLRF();
-    } else {
-        // Deactivate engagement sensors
-        qDebug() << "Engagement sensors deactivated.";
-        // Stop LRF or other engagement-related sensors
-        deactivateLRF();
-    }
-}
 
 // Methods to send commands to LRFInterface
 void SensorSystem::sendSelfCheck()

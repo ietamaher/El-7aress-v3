@@ -9,17 +9,19 @@
 void GyroStabilizationMotionMode::enter(GimbalController* controller) {
     qDebug() << "Entering Gyro Stabilization Motion Mode";
     // Enable gyrostabilization in SensorSystem
-    if (controller->getSensorSystem()) {
+
+    //TO MODIFY in GIMBAL CONTROLLER CLASS !!!
+    /*if (controller->getSensorSystem()) {
         controller->getSensorSystem()->enableStabilization();
-    }
+    }*/
 }
 
 void GyroStabilizationMotionMode::exit(GimbalController* controller) {
     qDebug() << "Exiting Gyro Stabilization Motion Mode";
     // Disable gyrostabilization in SensorSystem
-    if (controller->getSensorSystem()) {
+    /*if (controller->getSensorSystem()) {
         controller->getSensorSystem()->disableStabilization();
-    }
+    }*/
 }
 
 void GyroStabilizationMotionMode::handleJoystickInput(GimbalController* controller, int axis, float value) {

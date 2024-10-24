@@ -178,10 +178,10 @@ void MainWindow::onJoystickButtonPressed(int button, bool pressed) {
 
 
             // LRF and Stabilization Controls (CMS Hat Switch)
-            case 10: m_stateManager->getSensorSystem()->activateLRF(); break;
-            case 11: m_stateManager->getSensorSystem()->deactivateLRF(); break;
-            case 12: m_stateManager->getSensorSystem()->enableStabilization(); break;
-            case 13: m_stateManager->getSensorSystem()->disableStabilization(); break;
+            //case 10: m_stateManager->getSensorSystem()->activateLRF(); break;
+            //case 11: m_stateManager->getSensorSystem()->deactivateLRF(); break;
+            //case 12: m_stateManager->getSensorSystem()->enableStabilization(); break;
+            //case 13: m_stateManager->getSensorSystem()->disableStabilization(); break;
             case 14: displaySystemStatus(); break;
 
             // Gimbal Control Toggle (Button 4)
@@ -225,7 +225,7 @@ void MainWindow::emergencyStop() {
     m_manualGimbalControlEnabled = false;
     m_stateManager->getGimbalController()->enable(false);
     m_stateManager->getWeaponSystem()->cancelFire();
-    m_stateManager->getSensorSystem()->activateSensors(false);
+    //m_stateManager->getSensorSystem()->activateSensors(false);  // TODO !!!
     m_stateManager->setMode(OperationalMode::Idle);
     qDebug() << "Emergency stop activated. All systems halted.";
 }

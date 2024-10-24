@@ -1,0 +1,15 @@
+// config.json
+{
+    "serialPorts": [
+        {"name": "COM3", "baudRate": 9600},
+        {"name": "COM4", "baudRate": 9600},
+        {"name": "COM5", "baudRate": 9600}
+    ],
+    "cameras": ["/dev/video1", "/dev/video2"],
+    "joystick": "/dev/input/js0",
+    "plcModbus": {
+        "portName": "COM6",
+        "baudRate": 9600
+    }
+}
+

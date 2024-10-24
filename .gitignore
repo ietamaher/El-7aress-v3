@@ -1,0 +1,18 @@
+# Qt build directories
+/build-*/
+/debug/
+/release/
+
+# Qt Creator specific files
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+
+# Other
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib

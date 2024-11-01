@@ -15,7 +15,7 @@ JoystickHandler::JoystickHandler(const QString &devicePath, QObject *parent)
         m_notifier = new QSocketNotifier(m_fd, QSocketNotifier::Read, this);
         connect(m_notifier, &QSocketNotifier::activated, this, &JoystickHandler::readData);
     } else {
-        qWarning() << "Failed to open joystick device:" << devicePath;
+       qDebug() << "Failed to open joystick device:" << devicePath;
     }
 }
 
@@ -47,6 +47,6 @@ void JoystickHandler::readData() {
     }
 
     if (bytes == -1 && errno != EAGAIN) {
-        qWarning() << "Error reading joystick data";
+       qDebug() << "Error reading joystick data";
     }
 }

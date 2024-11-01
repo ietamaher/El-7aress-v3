@@ -12,67 +12,112 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
     ui(new Ui::MainWindow),
-    m_stateManager(new StateManager(this)),
-    m_joystickHandler(new JoystickHandler("/dev/input/js0", this)),
-    m_manualGimbalControlEnabled(false),
-    m_cameraSystem(new CameraSystem(this))
+m_manualGimbalControlEnabled(false)
 {
     ui->setupUi(this);
+    initializeComponents();
+    connectSignals();
+    startThread();
+    // Initialize status panel
+    m_statusPanel = new StatusPanel(this);
 
+    // Add status panel to the main window
+     //ui->systemStatusWidget->setWiddget(m_statusPanel);
 
-    // Create the shared ModbusCommunication instance
-    PLCModbusCommunication *plcModbusComm = new PLCModbusCommunication("/dev/pts/12", 115200, this);
+}
 
-    // Connect to the PLC
-    if (!plcModbusComm->connectDevice()) {
-        qCritical() << "Failed to connect to PLC via Modbus.";
-        // Handle the error appropriately
+MainWindow::~MainWindow() {
+    // Stop any ongoing activities
+
+    // Stop update timer
+    if (updateTimer && updateTimer->isActive()) {
+        updateTimer->stop();
     }
 
-    // Create interfaces using the shared ModbusCommunication instance
-    PLCServoInterface *plcServoInterface = new PLCServoInterface(plcModbusComm, this);
-    PLCSolenoidInterface *plcSolenoidInterface = new PLCSolenoidInterface(plcModbusComm, this);
-    PLCSensorInterface *plcSensorInterface = new PLCSensorInterface(plcModbusComm, this);
+    // Stop status timer
+    if (statusTimer && statusTimer->isActive()) {
+        statusTimer->stop();
+    }
+
+    // Stop weapon firing
+    if (m_weaponSystem) {
+        m_weaponSystem->stopFiring();
+    }
+
+    // Stop monitoring sensors
+    if (m_sensorSystem) {
+        m_sensorSystem->stopMonitoringSensors();
+    }
+
+    // Disconnect Modbus devices
+    if (m_modbusWorker) {
+        m_modbusWorker->stopCommunication();
+        delete m_modbusWorker;
+        m_modbusWorker = nullptr;
+    }
+
+    // Ensure that all serial ports in SensorSystem are closed
+    if (m_sensorSystem) {
+        m_sensorSystem->shutdown(); // Implement a shutdown method if needed
+    }
+
+    // Clean up other systems if necessary
+    /*if (m_gimbalController) {
+        m_gimbalController->shutdown(); // Implement a shutdown method if needed
+    }*/
+    if (m_cameraSystem) {
+        m_cameraSystem->shutdown(); // Implement a shutdown method if needed
+    }
+
+    delete ui;
+}
+
+void MainWindow::initializeComponents() {
 
     // Create system instances
-    GimbalController *gimbalController = new GimbalController(this);
-    WeaponSystem *weaponSystem = new WeaponSystem(this);
-    m_sensorSystem = new SensorSystem(this);
+    m_stateManager = new   StateManager(this);
+
+    // Get subsystem instances from StateManager
+    m_cameraSystem = m_stateManager->getCameraSystem();
+    m_gimbalController = m_stateManager->getGimbalController();
+    m_weaponSystem = m_stateManager->getWeaponSystem();
+    m_sensorSystem = m_stateManager->getSensorSystem();
+
+
+    m_joystickHandler = new JoystickHandler("/dev/input/js0", this);
+    /*m_cameraSystem = new CameraSystem(this);
+
+    m_gimbalController = new GimbalController(this);
+    m_weaponSystem = new WeaponSystem(this);
+    m_sensorSystem = new SensorSystem(this);*/
+
+    // Create the shared PLC ModbusCommunication instance
+    m_modbusWorker = new PLCModbusWorker("/dev/pts/11", 115200, this);
+
+    // Create interfaces using the shared ModbusCommunication instance
+    m_plcServoInterface = new PLCServoInterface(m_modbusWorker, this);
+    m_plcSolenoidInterface = new PLCSolenoidInterface(m_modbusWorker, this);
+    m_plcSensorInterface = new PLCSensorInterface(m_modbusWorker, this);
 
     // Set interfaces in systems
-    gimbalController->setPLCServoInterface(plcServoInterface);
-    weaponSystem->setPLCSolenoidInterface(plcSolenoidInterface);
-    m_sensorSystem->setPLCSensorInterface(plcSensorInterface);
+    m_gimbalController->setPLCServoInterface(m_plcServoInterface);
+    m_weaponSystem->setPLCSolenoidInterface(m_plcSolenoidInterface);
+    m_sensorSystem->setPLCSensorInterface(m_plcSensorInterface);
 
     // Start monitoring sensors
     m_sensorSystem->startMonitoringSensors();
 
     // Arm weapon and start firing at 10 Hz
-    weaponSystem->startFiring(10);
-    initializeComponents();
-    connectSignals();
-}
+    m_weaponSystem->startFiring(10);
 
-MainWindow::~MainWindow() {
-    delete ui;
-    // Other members will be deleted automatically as they have 'this' as parent
-}
 
-void MainWindow::initializeComponents() {
-    GimbalController *gimbalController = new GimbalController(this);
-    WeaponSystem *weaponSystem = new WeaponSystem(this);
-
-    CommunicationSystem *communicationSystem = new CommunicationSystem(this);
-    // Initialize SensorSystem
-   // m_sensorSystem = new SensorSystem(this);
-
-    m_stateManager->setSensorSystem(m_sensorSystem);
+    /*m_stateManager->setSensorSystem(m_sensorSystem);
     // Use the member variable m_cameraSystem
-    m_stateManager->setGimbalController(gimbalController);
+    m_stateManager->setGimbalController(m_gimbalController);
     m_stateManager->setCameraSystem(m_cameraSystem);
-    m_stateManager->setWeaponSystem(weaponSystem);
+    m_stateManager->setWeaponSystem(m_weaponSystem);*/
 
-    m_stateManager->setCommunicationSystem(communicationSystem);
+    m_stateManager->setMode(OperationalMode::Idle);
 
     m_cameraSystem->setDisplayWidget(ui->m_videowidget);
 
@@ -91,11 +136,14 @@ void MainWindow::initializeComponents() {
     // Optionally, set selection behavior and mode
     ui->trackIdListWidget->setSelectionMode(QAbstractItemView::SingleSelection);
     ui->trackIdListWidget->setSelectionBehavior(QAbstractItemView::SelectRows);
-    connect(ui->trackIdListWidget, &QListWidget::currentItemChanged, this, &MainWindow::onTrackIdSelected);
+
     updateTimer = new QTimer(this);
     updateTimer->setInterval(500); // Update every 500ms
-    connect(updateTimer, &QTimer::timeout, this, &MainWindow::processPendingUpdates);
-    updateTimer->start();
+
+    statusTimer = new QTimer(this);
+    connect(statusTimer, &QTimer::timeout, this, &MainWindow::checkSystemStatus);
+    //statusTimer->start(1000); // Check every second
+
 }
 
 void MainWindow::connectSignals() {
@@ -124,7 +172,122 @@ void MainWindow::connectSignals() {
     connect(ui->btnQuerySettingValue, &QPushButton::clicked, this, &MainWindow::querySettingValue);
     connect(ui->btnQueryLaserCount, &QPushButton::clicked, this, &MainWindow::queryAccumulatedLaserCount);
 
+    connect(ui->trackIdListWidget, &QListWidget::currentItemChanged, this, &MainWindow::onTrackIdSelected);
+    connect(updateTimer, &QTimer::timeout, this, &MainWindow::processPendingUpdates);
+
+    // Connect Status signals
+    connect(statusTimer, &QTimer::timeout, this, &MainWindow::checkCameraStatus);
+    connect(statusTimer, &QTimer::timeout, this, &MainWindow::checkJoystickStatus);
+
+     connect(m_modbusWorker, &PLCModbusWorker::connectionStatusChanged, this, &MainWindow::onPLC1StatusChanged);
+    connect(m_sensorSystem, &SensorSystem::gyroConnectionStatusChanged, this, &MainWindow::onGyroStatusChanged);
+     connect(m_sensorSystem, &SensorSystem::radarConnectionStatusChanged, this, &MainWindow::onRadarStatusChanged);
+    connect(m_sensorSystem, &SensorSystem::lrfConnectionStatusChanged, this, &MainWindow::onLRFStatusChanged);
+
+     // Connect signals and slots
+    connect(m_modbusWorker, &PLCModbusWorker::connectionStatusChanged, this, &MainWindow::onPLC1StatusChanged);
+    //connect(m_modbusWorker, &PLCModbusWorker::logMessage, this, &MainWindow::onPLCLogMessage);
+    //connect(m_modbusWorker, &PLCModbusWorker::registersRead, this, &MainWindow::onPLCRegistersRead);
+    //connect(m_modbusWorker, &PLCModbusWorker::inputBitsRead, this, &MainWindow::onPLCInputBitsRead);
+    //connect(m_modbusWorker, &PLCModbusWorker::writeCompleted, this, &MainWindow::onPLCWriteCompleted);
+    //connect(m_modbusWorker, &PLCModbusWorker::errorOccurred, this, &MainWindow::onPLCErrorOccurred);
+
+
+    //connect(m_gimbalMotorDriver, &GimbalMotorDriver::stepperMotorStatusChanged, this, &MainWindow::onStepperMotorStatusChanged);
+     connect(m_gimbalController, &GimbalController::azimuthConnectionStatusChanged, this, &MainWindow::onAZStepperMotorStatusChanged);
+     connect(m_gimbalController, &GimbalController::elevationConnectionStatusChanged, this, &MainWindow::onELStepperMotorStatusChanged);
+     connect(m_weaponSystem, &WeaponSystem::actuatorStatusChanged, this, &MainWindow::onActuatorStatusChanged);
+
+    // connect(ui->switchMotionModeButton, &QPushButton::clicked,
+      //       this, &MainWindow::on_switchMotionModeButton_clicked);
+
+     /*connect(m_stateManager, &StateManager::modeChanged,
+             this, [&](OperationalMode mode) {
+                 if (mode == OperationalMode::Surveillance) {
+                     ui->switchMotionModeButton->setEnabled(true);
+                 }
+                 else {
+                     ui->switchMotionModeButton->setEnabled(false);
+                 }
+             });*/
 }
+
+void MainWindow::startThread() {
+    updateTimer->start();
+    m_cameraSystem->setProcessingMode(CameraSystem::IdleMode);
+    m_cameraSystem->start();
+    // Start communication
+    m_modbusWorker->startCommunication();
+}
+ // check system status
+
+bool MainWindow::isCameraAvailable(const QString &devicePath)
+{
+    QFile deviceFile(devicePath);
+    return deviceFile.exists();
+}
+
+bool MainWindow::isJoystickConnected()
+{
+    return QFile::exists("/dev/input/js0");
+}
+
+void MainWindow::checkSystemStatus()
+{
+    //checkCameraStatus();
+    //checkJoystickStatus();
+}
+
+void MainWindow::checkCameraStatus()
+{
+    bool camera1Available = isCameraAvailable("/dev/video0");
+    bool camera2Available = isCameraAvailable("/dev/video1");
+
+    ui->systemStatusWidget->setComponentStatus("Camera 1", camera1Available);
+    ui->systemStatusWidget->setComponentStatus("Camera 2", camera2Available);
+}
+
+void MainWindow::checkJoystickStatus()
+{
+    bool joystickConnected = isJoystickConnected();
+    ui->systemStatusWidget->setComponentStatus("Joystick", joystickConnected);
+}
+
+void MainWindow::onLRFStatusChanged(bool connected)
+{
+    ui->systemStatusWidget->setComponentStatus("LRF", connected);
+}
+
+void MainWindow::onGyroStatusChanged(bool connected)
+{
+    ui->systemStatusWidget->setComponentStatus("Gyro", connected);
+}
+
+void MainWindow::onRadarStatusChanged(bool connected)
+{
+    ui->systemStatusWidget->setComponentStatus("Radar", connected);
+}
+
+void MainWindow::onPLC1StatusChanged(bool connected)
+{
+    ui->systemStatusWidget->setComponentStatus("PLC1 Communication", connected);
+}
+
+void MainWindow::onAZStepperMotorStatusChanged(bool connected)
+{
+    ui->systemStatusWidget->setComponentStatus("Stepper Motor 1", connected);
+}
+
+void MainWindow::onELStepperMotorStatusChanged(bool connected)
+{
+    ui->systemStatusWidget->setComponentStatus("Stepper Motor 2", connected);
+}
+
+void MainWindow::onActuatorStatusChanged(bool connected)
+{
+    ui->systemStatusWidget->setComponentStatus("Actuator", connected);
+}
+
 
 void MainWindow::onJoystickAxisMoved(int axis, int value) {
     float normalizedValue = value / 32767.0f;
@@ -152,7 +315,7 @@ void MainWindow::onJoystickButtonPressed(int button, bool pressed) {
             // Operational Mode Switching (TMS Hat Switch)
             case 15: m_stateManager->setMode(OperationalMode::Surveillance); break;
             case 16: m_stateManager->setMode(OperationalMode::Engagement); break;
-            case 17: m_stateManager->setMode(OperationalMode::Detection); break;
+            //case 17: m_stateManager->setMode(OperationalMode::Detection); break;
             case 18: m_stateManager->setMode(OperationalMode::Tracking); break;
             case 19: m_stateManager->setMode(OperationalMode::Idle); break;
 
@@ -201,11 +364,11 @@ void MainWindow::onJoystickButtonPressed(int button, bool pressed) {
             case 8: activateAutoTracking(); break;
 
             // Communication Functions (Mic Switch)
-            case 27: m_stateManager->getCommunicationSystem()->increaseVolume(); break;
+            /*case 27: m_stateManager->getCommunicationSystem()->increaseVolume(); break;
             case 28: m_stateManager->getCommunicationSystem()->decreaseVolume(); break;
             case 29: m_stateManager->getCommunicationSystem()->toggleMute(); break;
             case 30: m_stateManager->getCommunicationSystem()->selectChannel(1); break; // Example channel
-            case 31: m_stateManager->getCommunicationSystem()->openCommunicationPanel(); break;
+            case 31: m_stateManager->getCommunicationSystem()->openCommunicationPanel(); break;*/
 
             default:
                 qDebug() << "Button" << button << "pressed";
@@ -354,8 +517,6 @@ void MainWindow::onErrorOccurred(const QString &error)
 {
     // Display the error in the status bar and optionally as a message box
     qDebug() << "Error:" << error;
-    //ui->statusBar->showMessage(error, 5000); // Show for 5 seconds
-    QMessageBox::warning(this, "LRF Error", error);
 }
 
 void MainWindow::onFrequencySet(quint8 frequency, quint8 majorVersion, quint8 secondaryVersion, quint8 maintenanceVersion)
@@ -481,19 +642,259 @@ void MainWindow::on_idleBtn_clicked()
 void MainWindow::on_survBtn_clicked()
 {
     m_stateManager->setMode(OperationalMode::Surveillance);
+    MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
+    QString modeName;
+    switch (currentMode) {
+    case MotionModeType::Manual:
+        modeName = "Manual";
+        break;
+    case MotionModeType::Pattern:
+        modeName = "Pattern";
+        break;
+    case MotionModeType::Radar:
+        modeName = "Radar";
+        break;
+    default:
+        modeName = "Unknown";
+        break;
+    }
+
+    ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
 }
 
 void MainWindow::on_engageBtn_clicked()
 {
     m_stateManager->setMode(OperationalMode::Engagement);
-}
+    MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
+    QString modeName;
+    switch (currentMode) {
+    case MotionModeType::Manual:
+        modeName = "Manual";
+        break;
+    case MotionModeType::ManualTracking:
+        modeName = "Manual Track";
+        break;
+    case MotionModeType::TargetTracking:
+        modeName = "AI Track";
+        break;
+    default:
+        modeName = "Unknown";
+        break;
+    }
+    ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
 
-void MainWindow::on_detBtn_clicked()
-{
-    m_stateManager->setMode(OperationalMode::Detection);
+
 }
 
 void MainWindow::on_trckBtn_clicked()
 {
-    m_stateManager->setMode(OperationalMode::Tracking);
+
+    if (detectionEnabled){
+        m_stateManager->getCameraSystem()->setProcessingMode(CameraSystem::ProcessMode::TrackingMode);
+     }
+    else{
+        m_stateManager->getCameraSystem()->setProcessingMode(CameraSystem::ProcessMode::ManualTrackingMode);
+     }
+    bool isManualTracking = !detectionEnabled; // If detection is disabled, manual tracking is true
+    m_stateManager->setMode(OperationalMode::Tracking, isManualTracking);
+    MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
+    QString modeName;
+    switch (currentMode) {
+    case MotionModeType::ManualTracking:
+        modeName = "Manual Track";
+        break;
+    case MotionModeType::TargetTracking:
+        modeName = "AI Track";
+        break;
+    default:
+        modeName = "Unknown";
+        break;
+    }
+    ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+
+
 }
+
+void MainWindow::on_switchMotionModeButton_clicked()
+{
+    // Check if the current mode is Surveillance
+    if (m_stateManager->currentMode() == OperationalMode::Surveillance) {
+        // Get the current motion mode
+        MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
+        MotionModeType nextMode;
+
+        // Determine the next motion mode
+        switch (currentMode) {
+        case MotionModeType::Manual:
+            nextMode = MotionModeType::Pattern;
+            break;
+        case MotionModeType::Pattern:
+            nextMode = MotionModeType::Radar;
+            break;
+        case MotionModeType::Radar:
+            nextMode = MotionModeType::Manual;
+            break;
+        default:
+            nextMode = MotionModeType::Manual;
+            break;
+        }
+
+        // Request the StateManager to change the motion mode
+        m_stateManager->requestMotionModeChange(nextMode);
+
+        // Optional: Provide feedback to the user
+        QString modeName;
+        switch (nextMode) {
+        case MotionModeType::Manual:
+            modeName = "Manual";
+            break;
+        case MotionModeType::Pattern:
+            modeName = "Pattern";
+            break;
+        case MotionModeType::Radar:
+            modeName = "Radar";
+            break;
+        default:
+            modeName = "Unknown";
+            break;
+        }
+
+         ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+
+    } else if(m_stateManager->currentMode() == OperationalMode::Tracking) {
+        // Get the current motion mode
+        MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
+        MotionModeType nextMode;
+
+        // Determine the next motion mode
+        switch (currentMode) {
+        case MotionModeType::ManualTracking:
+            nextMode = MotionModeType::TargetTracking;
+            break;
+        case MotionModeType::TargetTracking:
+            nextMode = MotionModeType::ManualTracking;
+            break;
+        default:
+            nextMode = MotionModeType::ManualTracking;
+            break;
+        }
+
+        // Request the StateManager to change the motion mode
+        m_stateManager->requestMotionModeChange(nextMode);
+
+        // Optional: Provide feedback to the user
+        QString modeName;
+        switch (nextMode) {
+        case MotionModeType::ManualTracking:
+            modeName = "Manual Track";
+            break;
+        case MotionModeType::TargetTracking:
+            modeName = "AI Track";
+            break;
+        default:
+            modeName = "Unknown";
+            break;
+        }
+
+        ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+
+
+    }
+
+    else {
+        QMessageBox::warning(this, "Invalid Operation",
+                             "Motion mode can only be changed in Surveillance mode.");
+    }
+}
+
+
+
+void MainWindow::on_trackButton_clicked()
+{
+    QListWidgetItem* item = ui->trackIdListWidget->currentItem();
+    if (item) {
+        // Assuming the target ID is stored in the item's data (e.g., Qt::UserRole)
+        int selectedTargetID = item->data(Qt::UserRole).toInt();
+
+        // Notify SurveillanceState
+        if (m_stateManager->currentMode() == OperationalMode::Surveillance) {
+            SurveillanceState* survState = dynamic_cast<SurveillanceState*>(m_stateManager->getCurrentState());
+            if (survState) {
+                //survState->onTargetSelected(selectedTargetID);
+            }
+        }
+    }
+}
+
+
+void MainWindow::on_engageButton_clicked()
+{
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::question(this, "Confirm Engagement", "Are you sure you want to engage the target?",
+                                  QMessageBox::Yes|QMessageBox::No);
+    if (reply == QMessageBox::Yes) {
+        // Notify TrackingState
+        if (m_stateManager->currentMode() == OperationalMode::Tracking) {
+            TrackingState* trackingState = dynamic_cast<TrackingState*>(m_stateManager->getCurrentState());
+            if (trackingState) {
+                trackingState->onEngageCommand();
+            }
+        }
+    }
+}
+
+
+void MainWindow::on_cancelTrackingButton_clicked()
+{
+    if (m_stateManager->currentMode() == OperationalMode::Tracking) {
+        TrackingState* trackingState = dynamic_cast<TrackingState*>(m_stateManager->getCurrentState());
+        if (trackingState) {
+            trackingState->onCancelTracking();
+        }
+    }
+}
+
+
+void MainWindow::on_detectionToggleButton_clicked()
+{
+
+    if (m_stateManager->currentMode() == OperationalMode::Surveillance) {
+        CameraSystem::ProcessMode processMode = m_stateManager->getCameraSystem()->getProcessingMode();
+        CameraSystem::ProcessMode nextProcessMode;
+
+        // Determine the next motion mode
+        switch (processMode) {
+        case CameraSystem::ProcessMode::IdleMode:
+            nextProcessMode = CameraSystem::ProcessMode::DetectionMode;
+            detectionEnabled = true;
+            break;
+        case CameraSystem::ProcessMode::DetectionMode:
+            nextProcessMode = CameraSystem::ProcessMode::IdleMode;
+            detectionEnabled = false;
+            break;
+        default:
+            nextProcessMode = CameraSystem::ProcessMode::IdleMode;
+            detectionEnabled = false;
+
+            break;
+        }
+        SurveillanceState* survState = dynamic_cast<SurveillanceState*>(m_stateManager->getCurrentState());
+        if (survState) {
+            survState->setDetectionEnabled(detectionEnabled);
+        }
+    }
+}
+
+
+void MainWindow::on_stabToggleButton_clicked()
+{
+
+    if (m_stateManager->currentMode() == OperationalMode::Surveillance ||
+        m_stateManager->currentMode() == OperationalMode::Tracking) {
+        // STAB can be toggled in Surveillance and Tracking modes
+        if (m_stateManager->getGimbalController()) {
+            m_stateManager->getGimbalController()->setStabilizationEnabled(stabilizationEnabled);
+        }
+    }
+}
+

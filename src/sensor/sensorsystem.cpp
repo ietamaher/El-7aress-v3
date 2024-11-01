@@ -9,6 +9,7 @@ SensorSystem::SensorSystem(QObject *parent)
     m_sensorsActive(false),
     m_lrfActive(false),
     m_stabilizationEnabled(false),
+    m_lrfInterface(new LRFInterface(this)),
     m_gyroInterface(new GyroInterface(this)),
     m_radarInterface(new RadarInterface(this)),
     m_plcSensorInterface(nullptr),
@@ -16,94 +17,148 @@ SensorSystem::SensorSystem(QObject *parent)
     m_pitch(0.0),
     m_yaw(0.0)
 {
-    SerialPortManager *portManager = new SerialPortManager(this);
-
+    qDebug() << "SensorSystem constructor called";
 
     // Initialize LRF Interface
-    m_lrfInterface = new LRFInterface();
-    QSerialPort* lrfSerial = new QSerialPort(this);
-    lrfSerial->setPortName("/dev/pts/1"); // Adjust as necessary
-    lrfSerial->setBaudRate(QSerialPort::Baud9600);
-    lrfSerial->setDataBits(QSerialPort::Data8);
-    lrfSerial->setParity(QSerialPort::NoParity);
-    lrfSerial->setStopBits(QSerialPort::OneStop);
-    lrfSerial->setFlowControl(QSerialPort::NoFlowControl);
+    if (m_lrfInterface->openSerialPort("/dev/pts/1")) {
+        setLRFInterface(m_lrfInterface);
+        handleLRFConnectionStatusChanged(true);
 
-
-    if (lrfSerial->open(QIODevice::ReadWrite)) {
-        m_lrfInterface->setSerialPort(lrfSerial);
     } else {
-        qWarning() << "Failed to open LRF serial port";
-        lrfSerial->deleteLater();
+       qDebug() << "Failed to open LRF serial port";
+        // Handle failure
     }
-    setLRFInterface(m_lrfInterface);
 
+    // Initialize Gyro Interface
+    if (m_gyroInterface->openSerialPort("/dev/pts/22")) {
+        setGyroInterface(m_gyroInterface);
+        handleGyroConnectionStatusChanged(true);
+    } else {
+       qDebug() << "Failed to open Gyro serial port";
+        // Handle failure
+    }
 
+    // Initialize Radar Interface
+    if (m_radarInterface->openSerialPort("/dev/pts/17")) {
+        setRadarInterface(m_radarInterface);
+        handleRadarConnectionStatusChanged(true);
 
-    //in case inned to move it to thread uncomment this
-    //m_lrfThread = new QThread(this);
-    //m_lrfInterface->moveToThread(m_lrfThread);
+    } else {
+       qDebug() << "Failed to open Radar serial port";
+        // Handle failure
+    }
 
-
-    m_radarInterface = new RadarInterface();
-    radarSerial = portManager->configureSerialPort("/dev/pts/6",QSerialPort::Baud4800,QSerialPort::Data8);
-    m_radarInterface->setSerialPort(radarSerial);
-
-    m_gyroInterface = new GyroInterface();
-    gyroSerial = portManager->configureSerialPort("/dev/pts/9",QSerialPort::Baud115200,QSerialPort::Data8);
-    m_gyroInterface->setSerialPort(gyroSerial);
-
-    //m_plcSensorInterface = new PLCSensorInterface();
-    //plcSerial = portManager->configureSerialPort("/dev/pts/5",QSerialPort::Baud115200,QSerialPort::Data8);
-    //m_plcSensorInterface->setSerialPort(plcSerial);
-
+    // m_plcSensorInterface is instantiated in the main class!
 }
 
-SensorSystem::~SensorSystem()
-{
-    //m_lrfThread->quit();
-    //m_lrfThread->wait();
+SensorSystem::~SensorSystem(){
+    shutdown();
+}
+
+void SensorSystem::shutdown() {
+    // Stop monitoring sensors
+    stopMonitoringSensors();
+
+    // Shutdown interfaces
     if (m_lrfInterface) {
-        delete m_lrfInterface;
+        m_lrfInterface->shutdown();
+    }
+    if (m_gyroInterface) {
+        m_gyroInterface->shutdown();
+    }
+    if (m_radarInterface) {
+        m_radarInterface->shutdown();
+    }
+
+    qDebug() << "SensorSystem has been shut down.";
+}
+// Setter methods
+void SensorSystem::setLRFInterface(LRFInterface *lrfInterface) {
+    if (m_lrfInterface) {
+        // Disconnect previous connections if any
+        disconnect(m_lrfInterface, nullptr, this, nullptr);
+    }
+
+    m_lrfInterface = lrfInterface;
+
+    if (m_lrfInterface) {
+        // Connect LRFInterface signals to SensorSystem signals
+        connect(m_lrfInterface, &LRFInterface::errorOccurred, this, &SensorSystem::handleErrorOccurred);
+        connect(m_lrfInterface, &LRFInterface::frequencySet, this, &SensorSystem::handleFrequencySet);
+        connect(m_lrfInterface, &LRFInterface::settingValueReceived, this, &SensorSystem::handleSettingValueReceived);
+        connect(m_lrfInterface, &LRFInterface::laserCountReceived, this, &SensorSystem::handleLaserCountReceived);
+        connect(m_lrfInterface, &LRFInterface::selfCheckResult, this, &SensorSystem::handleSelfCheckResult);
+        connect(m_lrfInterface, &LRFInterface::rangingDataReceived, this, &SensorSystem::handleRangingDataReceived);
+
+        connect(m_lrfInterface, &LRFInterface::statusChanged, this, &SensorSystem::handleLRFConnectionStatusChanged);
+
+    }
+}
+
+void SensorSystem::onLRFInterfaceDestroyed(QObject *obj) {
+    if (m_lrfInterface == obj) {
+       qDebug() << "LRFInterface has been destroyed.";
         m_lrfInterface = nullptr;
     }
 }
 
-// Setter methods
-void SensorSystem::setLRFInterface(LRFInterface *lrfInterface) {
-    m_lrfInterface = lrfInterface;
-    // Clean up when thread finishes
-    //connect(m_lrfThread, &QThread::finished, m_lrfInterface, &QObject::deleteLater);
-
-    // Connect LRFInterface signals to SensorSystem signals
-    connect(m_lrfInterface, &LRFInterface::errorOccurred, this, &SensorSystem::handleErrorOccurred);
-    connect(m_lrfInterface, &LRFInterface::frequencySet, this, &SensorSystem::handleFrequencySet);
-    connect(m_lrfInterface, &LRFInterface::settingValueReceived, this, &SensorSystem::handleSettingValueReceived);
-    connect(m_lrfInterface, &LRFInterface::laserCountReceived, this, &SensorSystem::handleLaserCountReceived);
-    connect(m_lrfInterface, &LRFInterface::selfCheckResult, this, &SensorSystem::handleSelfCheckResult);
-    connect(m_lrfInterface, &LRFInterface::rangingDataReceived, this, &SensorSystem::handleRangingDataReceived);
-
-    //m_lrfThread->start();
-}
-
 void SensorSystem::setGyroInterface(GyroInterface *gyroInterface) {
+    if (m_gyroInterface) {
+        disconnect(m_gyroInterface, nullptr, this, nullptr);
+    }
     m_gyroInterface = gyroInterface;
-    connect(m_gyroInterface, &GyroInterface::gyroDataReceived, this, &SensorSystem::onGyroDataReceived);
+    if (m_gyroInterface) {
+        connect(m_gyroInterface, &GyroInterface::gyroDataReceived, this, &SensorSystem::onGyroDataReceived);
+        connect(m_gyroInterface, &GyroInterface::errorOccurred, this, &SensorSystem::handleErrorOccurred);
+
+        connect(m_gyroInterface, &GyroInterface::statusChanged, this, &SensorSystem::handleGyroConnectionStatusChanged);
+
+        // Connect other signals as needed
+    }
 }
 
 void SensorSystem::setRadarInterface(RadarInterface *radarInterface) {
+    if (m_radarInterface) {
+        disconnect(m_radarInterface, nullptr, this, nullptr);
+    }
     m_radarInterface = radarInterface;
-    // Connect signals and slots if necessary
+    if (m_radarInterface) {
+        //connect(m_radarInterface, &RadarInterface::targetUpdated, this, &SensorSystem::onRadarDataReceived);
+        connect(m_radarInterface, &RadarInterface::errorOccurred, this, &SensorSystem::handleErrorOccurred);
+
+        connect(m_radarInterface, &RadarInterface::statusChanged, this, &SensorSystem::handleRadarConnectionStatusChanged);
+
+        // Connect other signals as needed
+    }
 }
 
 void SensorSystem::setPLCSensorInterface(PLCSensorInterface *sensorInterface) {
+    if (m_plcSensorInterface) {
+        // Disconnect previous connections if any
+        disconnect(m_plcSensorInterface, nullptr, this, nullptr);
+    }
     m_plcSensorInterface = sensorInterface;
-    // Connect signals
-    connect(m_plcSensorInterface, &PLCSensorInterface::proximitySensorActivated, this, &SensorSystem::proximitySensorActivated);
-    connect(m_plcSensorInterface, &PLCSensorInterface::temperatureUpdated, this, &SensorSystem::temperatureUpdated);
-    connect(m_plcSensorInterface, &PLCSensorInterface::pressureUpdated, this, &SensorSystem::pressureUpdated);}
+    if (m_plcSensorInterface) {
+        // Connect signals
+        connect(m_plcSensorInterface, &PLCSensorInterface::proximitySensorActivated, this, &SensorSystem::proximitySensorActivated);
+        connect(m_plcSensorInterface, &PLCSensorInterface::temperatureUpdated, this, &SensorSystem::temperatureUpdated);
+        connect(m_plcSensorInterface, &PLCSensorInterface::pressureUpdated, this, &SensorSystem::pressureUpdated);
+    }
+}
 
 
+void SensorSystem::handleLRFConnectionStatusChanged(bool connected){
+    emit lrfConnectionStatusChanged(connected);
+}
+void SensorSystem::handleRadarConnectionStatusChanged(bool connected){
+
+    emit radarConnectionStatusChanged(connected);
+}
+
+void SensorSystem::handleGyroConnectionStatusChanged(bool connected){
+
+    emit gyroConnectionStatusChanged(connected);
+}
 // Getter methods
 LRFInterface* SensorSystem::getLRFInterface() const {
     return m_lrfInterface;
@@ -151,41 +206,76 @@ void SensorSystem::onGyroDataReceived(double Roll, double Pitch, double Yaw) {
 // to implment ...
 
 
-// Methods to send commands to LRFInterface
 void SensorSystem::sendSelfCheck()
 {
-    QMetaObject::invokeMethod(m_lrfInterface, "sendSelfCheck", Qt::QueuedConnection);
+    if (m_lrfInterface) {
+        QMetaObject::invokeMethod(m_lrfInterface, "sendSelfCheck", Qt::QueuedConnection);
+    } else {
+       qDebug() << "m_lrfInterface is null. Cannot send self-check command.";
+        emit errorOccurred("Unable to send self-check command: LRF interface is not initialized.");
+    }
 }
 
 void SensorSystem::sendSingleRanging()
 {
-    QMetaObject::invokeMethod(m_lrfInterface, "sendSingleRanging", Qt::QueuedConnection);
+    if (m_lrfInterface) {
+        QMetaObject::invokeMethod(m_lrfInterface, "sendSingleRanging", Qt::QueuedConnection);
+    } else {
+       qDebug() << "m_lrfInterface is null. Cannot send single ranging command.";
+        emit errorOccurred("Unable to send single ranging command: LRF interface is not initialized.");
+    }
 }
 
 void SensorSystem::sendContinuousRanging()
 {
-    QMetaObject::invokeMethod(m_lrfInterface, "sendContinuousRanging", Qt::QueuedConnection);
+    if (m_lrfInterface) {
+        QMetaObject::invokeMethod(m_lrfInterface, "sendContinuousRanging", Qt::QueuedConnection);
+    } else {
+       qDebug() << "m_lrfInterface is null. Cannot send continuous ranging command.";
+        emit errorOccurred("Unable to send continuous ranging command: LRF interface is not initialized.");
+    }
 }
 
 void SensorSystem::stopRanging()
 {
-    QMetaObject::invokeMethod(m_lrfInterface, "stopRanging", Qt::QueuedConnection);
+    if (m_lrfInterface) {
+        QMetaObject::invokeMethod(m_lrfInterface, "stopRanging", Qt::QueuedConnection);
+    } else {
+       qDebug() << "m_lrfInterface is null. Cannot stop ranging.";
+        emit errorOccurred("Unable to stop ranging: LRF interface is not initialized.");
+    }
 }
 
 void SensorSystem::setFrequency(int frequency)
 {
-    QMetaObject::invokeMethod(m_lrfInterface, "setFrequency", Qt::QueuedConnection, Q_ARG(int, frequency));
+    if (m_lrfInterface) {
+        QMetaObject::invokeMethod(m_lrfInterface, "setFrequency", Qt::QueuedConnection, Q_ARG(int, frequency));
+    } else {
+       qDebug() << "m_lrfInterface is null. Cannot set frequency.";
+        emit errorOccurred("Unable to set frequency: LRF interface is not initialized.");
+    }
 }
 
 void SensorSystem::querySettingValue()
 {
-    QMetaObject::invokeMethod(m_lrfInterface, "querySettingValue", Qt::QueuedConnection);
+    if (m_lrfInterface) {
+        QMetaObject::invokeMethod(m_lrfInterface, "querySettingValue", Qt::QueuedConnection);
+    } else {
+       qDebug() << "m_lrfInterface is null. Cannot query setting value.";
+        emit errorOccurred("Unable to query setting value: LRF interface is not initialized.");
+    }
 }
 
 void SensorSystem::queryAccumulatedLaserCount()
 {
-    QMetaObject::invokeMethod(m_lrfInterface, "queryAccumulatedLaserCount", Qt::QueuedConnection);
+    if (m_lrfInterface) {
+        QMetaObject::invokeMethod(m_lrfInterface, "queryAccumulatedLaserCount", Qt::QueuedConnection);
+    } else {
+       qDebug() << "m_lrfInterface is null. Cannot query accumulated laser count.";
+        emit errorOccurred("Unable to query accumulated laser count: LRF interface is not initialized.");
+    }
 }
+
 
 void SensorSystem::handleErrorOccurred(const QString &error) {
     // Optionally process the error before emitting

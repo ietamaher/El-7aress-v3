@@ -44,24 +44,44 @@ void CameraPipelineDay::start()
 
 void CameraPipelineDay::stop()
 {
-    gst_element_set_state(pipeline, GST_STATE_NULL);
-    if (busWatchId)
-    {
-        gst_bus_remove_watch(bus);
-        busWatchId = 0;
+    if (!pipeline)
+        return;
+    gst_object_unref (GST_OBJECT (pipeline));
+    // Disconnect signal handlers and remove probes
+    if (appsink) {
+        g_signal_handlers_disconnect_by_func(appsink, (gpointer)on_new_sample, this);
+        gst_element_set_state(appsink, GST_STATE_NULL);
+        gst_object_unref(appsink);
+        appsink = nullptr;
     }
-    if (bus)
-    {
+
+    if (osd_sink_pad && osd_probe_id > 0) {
+        gst_pad_remove_probe(osd_sink_pad, osd_probe_id);
+        gst_object_unref(osd_sink_pad);
+        osd_sink_pad = nullptr;
+    }
+
+    // Set the pipeline to NULL state
+    gst_element_set_state(pipeline, GST_STATE_NULL);
+
+    // Remove bus watch before unref'ing the bus
+    if (bus && bus_watch_id > 0) {
+        g_source_remove(bus_watch_id);
+        bus_watch_id = 0;
+    }
+
+    // Unref the bus
+    if (bus) {
         gst_object_unref(bus);
         bus = nullptr;
     }
-    if (pipeline)
-    {
-        gst_object_unref(pipeline);
-        pipeline = nullptr;
-    }
 
+    // Unref the pipeline
+    gst_object_unref(pipeline);
+    pipeline = nullptr;
 }
+
+
 
 void CameraPipelineDay::setTracker()
 {
@@ -178,25 +198,67 @@ void CameraPipelineDay::buildPipeline()
         return;
     }
 
+    g_object_set(G_OBJECT(sink), "sync", FALSE, NULL);
 
+    // Add all elements to the pipeline
+    gst_bin_add_many(GST_BIN(pipeline), source, capsfilter1, jpegparse, decoder, aspectratiocrop, nvvidconvsrc1, capsfilter2, streammux, pgie, tracker, nvvidconvsrc2, nvosd, nvvidconvsrc3, capsfilter3, appsink, NULL);
 
-    GstPad *sinkpad = gst_element_get_request_pad(streammux, "sink_0");
-    GstPad *srcpad = gst_element_get_static_pad(capsfilter2, "src");
-    if (gst_pad_link(srcpad, sinkpad) != GST_PAD_LINK_OK) {
-        g_printerr("Failed to link capsfilter2 to streammux. Exiting.\n");
-        return ;
+    // Add elements up to capsfilter2
+    if (!gst_element_link_many(source, capsfilter1, jpegparse, decoder, aspectratiocrop, nvvidconvsrc1, capsfilter2, NULL)) {
+        qWarning("Failed to link elements up to capsfilter2. Exiting.");
+        gst_object_unref(pipeline);
+        pipeline = nullptr;
+        return;
     }
+
+    // Manually link capsfilter2 to streammux's sink_0
+    GstPad *sinkpad = gst_element_get_request_pad(streammux, "sink_0");
+    if (!sinkpad) {
+        qWarning("Failed to get sink pad from streammux. Exiting.");
+        gst_object_unref(pipeline);
+        pipeline = nullptr;
+        return;
+    }
+
+    GstPad *srcpad = gst_element_get_static_pad(capsfilter2, "src");
+    if (!srcpad) {
+        qWarning("Failed to get src pad from capsfilter2. Exiting.");
+        gst_element_release_request_pad(streammux, sinkpad);
+        gst_object_unref(sinkpad);
+        gst_object_unref(pipeline);
+        pipeline = nullptr;
+        return;
+    }
+
+    if (gst_pad_link(srcpad, sinkpad) != GST_PAD_LINK_OK) {
+        qWarning("Failed to link capsfilter2 to streammux. Exiting.");
+        gst_object_unref(srcpad);
+        gst_object_unref(sinkpad);
+        gst_object_unref(pipeline);
+        pipeline = nullptr;
+        return;
+    }
+
     gst_object_unref(srcpad);
     gst_object_unref(sinkpad);
 
-    g_object_set(G_OBJECT(sink), "sync", FALSE, NULL);
-
-    gst_bin_add_many (GST_BIN (pipeline), source, capsfilter1, jpegparse, decoder, aspectratiocrop, nvvidconvsrc1,  capsfilter2, streammux,  pgie, tracker, nvvidconvsrc2, nvosd, nvvidconvsrc3, capsfilter3,  appsink, NULL);
-
-    if(!gst_element_link_many  (source, capsfilter1, jpegparse, decoder, aspectratiocrop,  nvvidconvsrc1, capsfilter2, streammux, pgie, tracker, nvvidconvsrc2,  nvosd,  nvvidconvsrc3, capsfilter3, appsink, NULL)){
-        qWarning("Elements could not be linked. Exiting.");
+    // Link the rest of the pipeline from streammux onwards
+    if (!gst_element_link_many(streammux, pgie, tracker, nvvidconvsrc2, nvosd, nvvidconvsrc3, capsfilter3, appsink, NULL)) {
+        qWarning("Failed to link elements from streammux onwards. Exiting.");
+        gst_object_unref(pipeline);
+        pipeline = nullptr;
         return;
     }
+
+
+
+
+    //gst_bin_add_many (GST_BIN (pipeline), source, capsfilter1, jpegparse, decoder, aspectratiocrop, nvvidconvsrc1,  capsfilter2, streammux,  pgie, tracker, nvvidconvsrc2, nvosd, nvvidconvsrc3, capsfilter3,  appsink, NULL);
+
+    /*if(!gst_element_link_many  (source, capsfilter1, jpegparse, decoder, aspectratiocrop,  nvvidconvsrc1, capsfilter2, streammux, pgie, tracker, nvvidconvsrc2,  nvosd,  nvvidconvsrc3, capsfilter3, appsink, NULL)){
+        qWarning("Elements could not be linked. Exiting.");
+        return;
+    }*/
     /* =========================================================================================
             visual representation of the pipeline with probes and sinks:
         [source] → [capsfilter1] → [decoder] → [aspectratiocrop] → [nvvidconvsrc1]
@@ -238,27 +300,37 @@ void CameraPipelineDay::buildPipeline()
         gst_object_unref(tracker_src_pad);
     }*/
 
-    GstPad *osd_sink_pad = gst_element_get_static_pad (nvosd, "sink");
-    if (!osd_sink_pad)
-        g_print ("Unable to get sink pad\n");
-    else
-        gst_pad_add_probe (osd_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
-                          osd_sink_pad_buffer_probe, this, NULL);
+
+    osd_sink_pad = gst_element_get_static_pad(nvosd, "sink");
+    if (!osd_sink_pad) {
+        g_print("Unable to get sink pad\n");
+    } else {
+        osd_probe_id = gst_pad_add_probe(osd_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
+                                         osd_sink_pad_buffer_probe, this, NULL);
+    }
+     osd_sink_pad = gst_element_get_static_pad (nvosd, "sink");
+
     gst_object_unref (osd_sink_pad);
-
-    qInfo("Elements are linked...");
-    // getting more information
-    gst_debug_set_active(true);
-    gst_debug_set_default_threshold(GST_LEVEL_WARNING);
-
-    // Start playing
-    gst_element_set_state(pipeline, GST_STATE_PLAYING);
-
-    // Clean up
+     // Add bus watcher
     // Add bus watcher
     bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
-    //bus_watch_id = gst_bus_add_watch(bus, bus_call, this);
+    bus_watch_id = gst_bus_add_watch(bus, bus_call, this);
     gst_object_unref(bus);
+
+    qInfo("Elements are linked...");
+
+    // Set pipeline to PLAYING and check for success
+    GstStateChangeReturn ret = gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+        qWarning("Failed to set pipeline to PLAYING state.");
+        gst_object_unref(pipeline);
+        pipeline = nullptr;
+        return;
+    }
+
+    // Debugging
+    gst_debug_set_active(true);
+    gst_debug_set_default_threshold(GST_LEVEL_WARNING);
 
 
 }
@@ -268,13 +340,13 @@ GstFlowReturn CameraPipelineDay::on_new_sample(GstAppSink *sink, gpointer data)
     CameraPipelineDay *self = static_cast<CameraPipelineDay *>(data);
     GstSample *sample = gst_app_sink_pull_sample(sink);
     if (!sample) {
-        qWarning() << "Failed to pull sample from appsink";
+       qDebug() << "Failed to pull sample from appsink";
         return GST_FLOW_ERROR;
     }
 
     GstCaps *caps = gst_sample_get_caps(sample);
     if (!caps) {
-        qWarning() << "Failed to get caps from sample";
+       qDebug() << "Failed to get caps from sample";
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;
     }
@@ -283,21 +355,21 @@ GstFlowReturn CameraPipelineDay::on_new_sample(GstAppSink *sink, gpointer data)
     int width, height;
     if (!gst_structure_get_int(structure, "width", &width) ||
         !gst_structure_get_int(structure, "height", &height)) {
-        qWarning() << "Failed to get width and height from caps";
+       qDebug() << "Failed to get width and height from caps";
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;
     }
 
     GstBuffer *buffer = gst_sample_get_buffer(sample);
     if (!buffer) {
-        qWarning() << "Failed to get buffer from sample";
+       qDebug() << "Failed to get buffer from sample";
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;
     }
 
     GstMapInfo map;
     if (!gst_buffer_map(buffer, &map, GST_MAP_READ)) {
-        qWarning() << "Failed to map buffer";
+       qDebug() << "Failed to map buffer";
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;
     }
@@ -305,7 +377,7 @@ GstFlowReturn CameraPipelineDay::on_new_sample(GstAppSink *sink, gpointer data)
     // Assuming RGB format
     const guint8 *dataRGBA = map.data;
     if (!dataRGBA) {
-        qWarning() << "Failed to access RGB data";
+       qDebug() << "Failed to access RGB data";
         gst_buffer_unmap(buffer, &map);
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;
@@ -640,7 +712,8 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
 }
 
 void CameraPipelineDay::setPGIEInterval(guint interval)
-{
+{    if (!pipeline)
+        return;
     g_object_set(G_OBJECT(pgie), "interval", interval, NULL);
 }
 
@@ -681,4 +754,22 @@ int CameraPipelineDay::getSelectedTrackId()
             return -1;
         }
     }
+}
+
+gboolean CameraPipelineDay::bus_call(GstBus *bus, GstMessage *msg, gpointer data)
+{
+    CameraPipelineDay *self = static_cast<CameraPipelineDay *>(data);
+    switch (GST_MESSAGE_TYPE(msg)) {
+    case GST_MESSAGE_EOS:
+        qDebug() << "EOS received in bus_call";
+        // Proceed with cleanup
+        self->stop();
+        break;
+    case GST_MESSAGE_ERROR:
+        // Handle error
+        break;
+    default:
+        break;
+    }
+    return TRUE;
 }

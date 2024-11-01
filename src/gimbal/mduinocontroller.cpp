@@ -90,5 +90,5 @@ void MduinoController::setElevationDirection(bool direction) {
 
 void MduinoController::logError(const QString &message) {
     emit logMessage(message);
-    qWarning() << "MduinoController:" << message;
+   qDebug() << "MduinoController:" << message;
 }

@@ -68,6 +68,7 @@ struct TrackDSInfo
 };
 
 
+
 class CameraPipelineNight : public QObject
 {
     Q_OBJECT

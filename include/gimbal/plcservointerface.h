@@ -2,12 +2,13 @@
 #define PLCSERVOINTERFACE_H
 
 #include <QObject>
-#include "include/comm/plcmodbuscommunication.h"
+#include <QSet>
+#include "include/comm/plcmodbusworker.h"
 
 class PLCServoInterface : public QObject {
     Q_OBJECT
 public:
-    explicit PLCServoInterface(PLCModbusCommunication *modbusComm, QObject *parent = nullptr);
+    explicit PLCServoInterface(PLCModbusWorker *modbusComm, QObject *parent = nullptr);
 
     void setAzimuthPulse(int pulse);
     void setAzimuthDirection(bool direction);
@@ -17,8 +18,15 @@ public:
 signals:
     void logMessage(const QString &message);
 
+private slots:
+    void onWriteCompleted(int address);
+    void onErrorOccurred(const QString &message);
+
 private:
-    PLCModbusCommunication *m_modbusComm;
+    PLCModbusWorker *m_modbusWorker;
+    // Map to keep track of pending writes if necessary
+    QSet<int> m_pendingWrites;
+
 
     // Modbus register addresses for servo control
     static constexpr int AZIMUTH_PULSE_ADDRESS = 0;

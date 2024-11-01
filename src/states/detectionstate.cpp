@@ -5,11 +5,11 @@
 
 void DetectionState::enter(StateManager* manager) {
     qDebug() << "Entering Detection Mode";
-    if (manager->getGimbalController()) {
+    /*if (manager->getGimbalController()) {
         manager->getGimbalController()->setMotionMode(new PatternMotionMode());
-    }
+    }*/
     if (manager->getCameraSystem()) {
-        manager->getCameraSystem()->start();
+        //manager->getCameraSystem()->start();
         manager->getCameraSystem()->setProcessingMode(CameraSystem::DetectionMode);
     }
 }

@@ -3,8 +3,10 @@
 
 #include <QObject>
 #include <QSerialPort>
-#include <QThread>
 #include <QMutex>
+#include <QWaitCondition>
+#include <QByteArray>
+#include <QThread>
 #include <QMap>
 
 struct RadarTarget {
@@ -20,7 +22,9 @@ public:
     explicit RadarInterface(QObject *parent = nullptr);
     ~RadarInterface();
 
-    void setSerialPort(QSerialPort *serial);
+    bool openSerialPort(const QString &portName);
+    void closeSerialPort();
+    void shutdown();
 
     // Accessor for target data
     QMap<int, RadarTarget> getTargets();
@@ -28,14 +32,20 @@ public:
 signals:
     void targetUpdated(const RadarTarget &target);
     void targetRemoved(int targetId);
+    void errorOccurred(const QString &error);
+    void statusChanged(bool isConnected);
 
 private slots:
     void processIncomingData();
+    void handleSerialError(QSerialPort::SerialPortError error);
+    void attemptReconnection();
 
 private:
     QSerialPort *radarSerial;
     QByteArray buffer;
+    bool m_isConnected;
     QMutex mutex;
+    QWaitCondition condition;
 
     QMap<int, RadarTarget> targets; // Keyed by target ID
 

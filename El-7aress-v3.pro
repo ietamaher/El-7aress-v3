@@ -81,9 +81,9 @@ SOURCES += \
     $$PWD/src/camera/dayCamerainterface.cpp \
     $$PWD/src/camera/nightcamerainterface.cpp \
     $$PWD/src/comm/communicationsystem.cpp \
-    $$PWD/src/comm/serialportmanager.cpp \
+    #$$PWD/src/comm/serialportmanager.cpp \
     $$PWD/src/comm/joystickhandler.cpp \
-    $$PWD/src/comm/plcmodbuscommunication.cpp \
+    $$PWD/src/comm/plcmodbusworker.cpp \
     $$PWD/src/comm/modbusinterface.cpp \
     $$PWD/src/gimbal/radartrackingmotionmode.cpp \
     $$PWD/src/gimbal/gimbalcontroller.cpp \
@@ -92,11 +92,10 @@ SOURCES += \
     $$PWD/src/gimbal/manualmotionmode.cpp \
     $$PWD/src/gimbal/gyrostabilizationmotionmode.cpp \
     $$PWD/src/gimbal/targettrackingmotionmode.cpp \
-    $$PWD/src/gimbal/mduinocontroller.cpp \
+    #$$PWD/src/gimbal/mduinocontroller.cpp \
     $$PWD/src/gimbal/servodriverinterface.cpp \
     $$PWD/src/gimbal/plcservointerface.cpp \
     $$PWD/src/main.cpp \
-    $$PWD/src/devicemanager.cpp \
     $$PWD/src/gui/mainwindow.cpp \
     $$PWD/src/gui/videoglwidget_gl.cpp \
     $$PWD/src/sensor/sensorsystem.cpp \
@@ -108,27 +107,31 @@ SOURCES += \
     $$PWD/src/states/surveillancestate.cpp \
     $$PWD/src/states/idlestate.cpp \
     $$PWD/src/states/trackingstate.cpp \
-    $$PWD/src/states/detectionstate.cpp \
+    $$PWD/src/states/emergencyoverridestate.cpp \
+    $$PWD/src/states/systemerrorstate.cpp \
     $$PWD/src/states/engagementstate.cpp \
     $$PWD/src/weapon/weaponsystem.cpp \
     $$PWD/src/weapon/servoactuatorinterface.cpp \
-    $$PWD/src/weapon/plcsolenoidinterface.cpp
+    $$PWD/src/weapon/plcsolenoidinterface.cpp \
+    $$PWD/src/gui/statuspanel.cpp \
+    $$PWD/src/states/operationalmode.cpp
+
 
 
 HEADERS += \
-    $$PWD/include/devicemanager.h \
     $$PWD/include/camera/camerapipeline_day.h \
     $$PWD/include/camera/camerapipeline_night.h \
     $$PWD/include/camera/camerasystem.h \
     $$PWD/include/comm/communicationsystem.h \
-    $$PWD/include/comm/plcmodbuscommunication.h \
+    $$PWD/include/comm/plcmodbusworker.h \
     $$PWD/include/camera/dayCamerainterface.h \
-    $$PWD/include/states/detectionstate.h \
+    $$PWD/include/states/emergencyoverridestate.h \
+    $$PWD/include/states/systemerrorstate.h \
     $$PWD/include/states/engagementstate.h \
     $$PWD/include/gimbal/gimbalcontroller.h \
     $$PWD/include/gimbal/gimbalmotionmode.h \
     $$PWD/include/gimbal/gimbalmotordriver.h \
-    $$PWD/include/gimbal/mduinocontroller.h \
+    #$$PWD/include/gimbal/mduinocontroller.h \
     $$PWD/include/gimbal/servodriverinterface.h \
     $$PWD/include/gimbal/radartrackingmotionmode.h \
     $$PWD/include/gimbal/plcservointerface.h \
@@ -149,7 +152,7 @@ HEADERS += \
     $$PWD/include/sensor/sensorsystem.h \
     $$PWD/include/sensor/radarinterface.h \
     $$PWD/include/sensor/plcsensorsinterface.h \
-    $$PWD/include/comm/serialportmanager.h \
+    #$$PWD/include/comm/serialportmanager.h \
     $$PWD/include/states/surveillancestate.h \
     $$PWD/include/gimbal/targettrackingmotionmode.h \
     $$PWD/include/states/trackingstate.h \
@@ -157,6 +160,9 @@ HEADERS += \
     $$PWD/include/weapon/weaponsystem.h \
     $$PWD/include/weapon/servoactuatorinterface.h \
     $$PWD/include/weapon/plcsolenoidinterface.h\
+    $$PWD/include/gui/statuspanel.h \
+    include/gimbal/motionmodetype.h
+
 
 FORMS += \
     mainwindow.ui
@@ -167,3 +173,10 @@ FORMS += \
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+DISTFILES += \
+    assets/icons/green.png \
+    assets/icons/red.png
+
+RESOURCES += \
+    icons.qrc

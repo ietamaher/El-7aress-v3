@@ -33,22 +33,20 @@ void ManualMotionMode::handleJoystickInput(GimbalController* controller, int axi
 }
 
 void ManualMotionMode::update(GimbalController* controller) {
-    // Send position commands
-    controller->getGimbalMotorDriver()->sendPositionCommand(m_azimuth, m_elevation);
+    // Get joystick input adjustments (already handled in handleJoystickInput)
+    double targetAzimuth = m_azimuth;
+    double targetElevation = m_elevation;
 
-   /* double azimuthCommand = ...; // Calculate desired azimuth
-    double elevationCommand = ...; // Calculate desired elevation
+    if (controller->isStabilizationEnabled()) {
+        // Get stabilization adjustments
+        double roll, pitch, yaw;
+        controller->getSensorSystem()->getGyroRates(roll, pitch, yaw);
 
-    // Convert to pulses and directions as needed
-    int azimuthPulse = ...;
-    bool azimuthDirection = ...;
-    int elevationPulse = ...;
-    bool elevationDirection = ...;
+        // Apply stabilization corrections
+        targetAzimuth -= yaw * STABILIZATION_FACTOR;
+        targetElevation -= pitch * STABILIZATION_FACTOR;
+    }
 
-    // Send commands using PLCServoInterface
-    controller->getPLCServoInterface()->setAzimuthPulse(azimuthPulse);
-    controller->getPLCServoInterface()->setAzimuthDirection(azimuthDirection);
-    controller->getPLCServoInterface()->setElevationPulse(elevationPulse);
-    controller->getPLCServoInterface()->setElevationDirection(elevationDirection);   */
-
+    // Send position command
+    controller->getGimbalMotorDriver()->sendPositionCommand(targetAzimuth, targetElevation);
 }

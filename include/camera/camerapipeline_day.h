@@ -117,6 +117,7 @@ private:
     //static GstPadProbeReturn nvtracker_sink_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data);
     //static GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data);
     static void clear_obj_meta_list(NvDsFrameMeta *frame_meta);
+    static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data);
     GstElement *pipeline;
     GstElement *appsink;
     GstElement *source;
@@ -125,8 +126,10 @@ private:
     GstElement  *pgie, *tracker, *nvvidconvsrc3, *jpegparse, *decoder, *nvvidconv_post, *nvosd;
     GstCaps *caps3, *caps1, *caps1bis, *caps2, *caps4;
     GstMessage *msg;
+    GstPad *osd_sink_pad = nullptr;
+    gulong osd_probe_id = 0;
     GError *error = NULL;
-    //guint bus_watch_id;
+    guint bus_watch_id;
     // Other pipeline elements
     GstBus *bus;
     guint busWatchId;

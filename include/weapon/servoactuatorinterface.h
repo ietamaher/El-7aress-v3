@@ -11,7 +11,9 @@ public:
     explicit ServoActuatorInterface(QObject *parent = nullptr);
     ~ServoActuatorInterface();
 
-    void setSerialPort(QSerialPort *serial);
+    bool openSerialPort(const QString &portName);
+    void closeSerialPort();
+    void shutdown();
 
     // Command methods
     void moveToPosition(int position);
@@ -25,13 +27,19 @@ signals:
     void statusUpdated(const QString &status);
     void alarmDetected(const QString &alarmMessage);
 
+    void errorOccurred(const QString &error);
+    void statusChanged(bool isConnected);
+
 private slots:
     void processIncomingData();
     void handleTimeout();
+    void handleSerialError(QSerialPort::SerialPortError error);
+    void attemptReconnection();
 
 private:
     QSerialPort *servoSerial;
     QByteArray buffer;
+    bool m_isConnected;
     QTimer *timeoutTimer;
 
     void sendCommand(const QString &command);

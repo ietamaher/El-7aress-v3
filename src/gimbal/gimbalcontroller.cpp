@@ -1,4 +1,8 @@
 #include "include/gimbal/gimbalcontroller.h"
+#include "include/gimbal/manualmotionmode.h"
+#include "include/gimbal/patternmotionmode.h"
+#include "include/gimbal/targettrackingmotionmode.h"
+#include "include/gimbal/radartrackingmotionmode.h"
 #include <QDebug>
 
 GimbalController::GimbalController(QObject *parent)
@@ -11,20 +15,27 @@ GimbalController::GimbalController(QObject *parent)
       m_plcServoInterface(nullptr),
       m_sensorSystem(nullptr),
       m_cameraSystem(nullptr),
+    m_currentMotionModeType(MotionModeType::Manual),
+    m_stabilizationEnabled(false),
       m_azimuth(0.0),
       m_elevation(0.0)
 {
     // Initialize the motor driver
+    qDebug() << "GimbalController constructor called";
+
     if (!m_gimbalMotorDriver->initialize()) {
-        qWarning() << "Failed to initialize GimbalMotorDriver";
+       qDebug() << "Failed to initialize GimbalMotorDriver";
     }
 
     // Connect signals from motor driver
-    connect(m_gimbalMotorDriver, &GimbalMotorDriver::azimuthDataUpdated,
-            this, &GimbalController::onAzimuthDataUpdated);
+    connect(m_gimbalMotorDriver, &GimbalMotorDriver::azimuthDataUpdated, this, &GimbalController::onAzimuthDataUpdated);
+    connect(m_gimbalMotorDriver, &GimbalMotorDriver::elevationDataUpdated, this, &GimbalController::onElevationDataUpdated);
 
-    connect(m_gimbalMotorDriver, &GimbalMotorDriver::elevationDataUpdated,
-            this, &GimbalController::onElevationDataUpdated);
+    connect(m_gimbalMotorDriver, &GimbalMotorDriver::elevationConnectionStatusChanged, this, &GimbalController::handleElevationConnectionStatusChanged);
+    connect(m_gimbalMotorDriver, &GimbalMotorDriver::azimuthConnectionStatusChanged, this, &GimbalController::handleAzimuthConnectionStatusChanged);
+
+    // Connect joystick button signal
+    //connect(m_joystickHandler, &JoystickHandler::buttonPressed, this, &GimbalController::handleJoystickButtonPressed);
 
     connect(m_gimbalMotorDriver, &GimbalMotorDriver::logMessage,
             this, [](const QString &message) {
@@ -35,26 +46,68 @@ GimbalController::GimbalController(QObject *parent)
 GimbalController::~GimbalController() {
     if (m_currentMotionMode) {
         m_currentMotionMode->exit(this);
-        delete m_currentMotionMode;
     }
 }
 
-void GimbalController::setMotionMode(GimbalMotionMode* mode) {
+void GimbalController::setMotionMode(MotionModeType modeType) {
+    if (m_currentMotionModeType == modeType)
+        return; // No change needed
+
+    // Exit current motion mode
     if (m_currentMotionMode) {
         m_currentMotionMode->exit(this);
-        delete m_currentMotionMode;
     }
-    m_currentMotionMode = mode;
+
+    // Instantiate the new motion mode
+    switch (modeType) {
+    case MotionModeType::Manual:
+        m_currentMotionMode = std::make_unique<ManualMotionMode>();
+        break;
+    case MotionModeType::Pattern:
+        m_currentMotionMode = std::make_unique<PatternMotionMode>();
+        break;
+    case MotionModeType::TargetTracking:
+        m_currentMotionMode = std::make_unique<TargetTrackingMotionMode>();
+        break;
+    case MotionModeType::Radar:
+        m_currentMotionMode = std::make_unique<RadarTrackingMotionMode>();
+        break;
+    default:
+        qWarning() << "GimbalController: Unknown MotionModeType";
+        m_currentMotionMode = nullptr;
+        break;
+    }
+
+    m_currentMotionModeType = modeType;
+
+    // Enter the new motion mode
     if (m_currentMotionMode) {
         m_currentMotionMode->enter(this);
     }
+
+    qDebug() << "GimbalController: Motion mode set to" << static_cast<int>(modeType);
+
+    // Emit the signal after setting the mode
+    //emit motionModeChangeRequested(modeType);
+
 }
 
-void GimbalController::handleJoystickInput(int axis, float value) {
-    if (m_currentMotionMode) {
-        m_currentMotionMode->handleJoystickInput(this, axis, value);
-    }
+void GimbalController::setStabilizationEnabled(bool enabled) {
+    m_stabilizationEnabled = enabled;
 }
+
+bool GimbalController::isStabilizationEnabled() const {
+    return m_stabilizationEnabled;
+}
+
+void GimbalController::handleAzimuthConnectionStatusChanged(bool connected){
+    emit azimuthConnectionStatusChanged(connected);
+}
+void GimbalController::handleElevationConnectionStatusChanged(bool connected){
+
+    emit elevationConnectionStatusChanged(connected);
+}
+
 
 void GimbalController::update() {
     if (m_currentMotionMode) {
@@ -105,13 +158,10 @@ void GimbalController::onModeChanged(OperationalMode mode) {
             enable(false);
             break;
         case OperationalMode::Surveillance:
-            // Depending on requirements, enable auto-scan
-            break;
-        case OperationalMode::Detection:
-            enableManualControl(false);
+            enableManualControl(true);
             break;
         case OperationalMode::Tracking:
-            // Possibly allow manual adjustments
+            enableManualControl(false);
             break;
         case OperationalMode::Engagement:
             enableManualControl(true);
@@ -129,4 +179,8 @@ void GimbalController::enableManualControl(bool enabled) {
     // Implement logic to enable or disable manual control
     // For example:
     // m_manualControlEnabled = enabled;
+}
+
+MotionModeType GimbalController::getCurrentMotionMode() const {
+    return m_currentMotionModeType;
 }

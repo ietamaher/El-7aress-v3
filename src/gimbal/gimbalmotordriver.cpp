@@ -4,8 +4,8 @@
 GimbalMotorDriver::GimbalMotorDriver(QObject *parent)
     : QObject(parent),
     //m_mduinoController(new MduinoController("/dev/pts/12", 115200, 1, this)), // Adjust port and slave ID
-    m_azimuthServoDriver(new ServoDriverInterface("azServo", "/dev/pts/15", 115200, 1, this)),
-    m_elevationServoDriver(new ServoDriverInterface("elServo", "/dev/pts/18", 115200, 1, this)),
+    m_azimuthServoDriver(new ServoDriverInterface("azServo", "/dev/pts/4", 115200, 1, this)),
+    m_elevationServoDriver(new ServoDriverInterface("elServo", "/dev/pts/7", 115200, 1, this)),
     m_azimuthPosition(0.0),
     m_elevationPosition(0.0)
 {
@@ -23,8 +23,8 @@ GimbalMotorDriver::GimbalMotorDriver(QObject *parent)
     connect(m_elevationServoDriver, &ServoDriverInterface::logMessage,
             this, &GimbalMotorDriver::logMessage);
 
-    //connect(m_mduinoController, &MduinoController::logMessage,
-      //      this, &GimbalMotorDriver::logMessage);
+    connect(m_elevationServoDriver, &ServoDriverInterface::connectionStatusChanged, this, &GimbalMotorDriver::handleElevationConnectionStatusChanged);
+    connect(m_azimuthServoDriver, &ServoDriverInterface::connectionStatusChanged, this, &GimbalMotorDriver::handleAzimuthConnectionStatusChanged);
 }
 
 GimbalMotorDriver::~GimbalMotorDriver() {
@@ -53,6 +53,16 @@ bool GimbalMotorDriver::initialize() {
     return true;
 }
 
+void GimbalMotorDriver::handleAzimuthConnectionStatusChanged(bool connected){
+    emit azimuthConnectionStatusChanged(connected);
+}
+void GimbalMotorDriver::handleElevationConnectionStatusChanged(bool connected){
+
+    emit elevationConnectionStatusChanged(connected);
+}
+
+
+
 void GimbalMotorDriver::sendPositionCommand(double azimuth, double elevation) {
     // Convert positions to pulses or appropriate units
     int azimuthPulse = static_cast<int>(azimuth * /* conversion factor */ 1000); // Adjust as needed
@@ -67,11 +77,11 @@ void GimbalMotorDriver::sendPositionCommand(double azimuth, double elevation) {
     elevationPulse = abs(elevationPulse);
 
     // Send commands to mduino controller
-    m_mduinoController->setAzimuthPulse(azimuthPulse);
-    m_mduinoController->setAzimuthDirection(azimuthDirection);
+    //m_mduinoController->setAzimuthPulse(azimuthPulse);
+    //m_mduinoController->setAzimuthDirection(azimuthDirection);
 
-    m_mduinoController->setElevationPulse(elevationPulse);
-    m_mduinoController->setElevationDirection(elevationDirection);
+    //m_mduinoController->setElevationPulse(elevationPulse);
+    //m_mduinoController->setElevationDirection(elevationDirection);
 }
 
 void GimbalMotorDriver::sendSpeedCommand(double azimuthSpeed, double elevationSpeed) {

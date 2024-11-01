@@ -4,6 +4,8 @@
 #include "gimbalmotionmode.h"
 #include <QObject>
 
+#define STABILIZATION_FACTOR  0.2;
+
 class ManualMotionMode : public QObject, public GimbalMotionMode {
     Q_OBJECT
 public:

@@ -1,44 +1,63 @@
 #include "include/gimbal/plcservointerface.h"
 #include <QDebug>
 
-PLCServoInterface::PLCServoInterface(PLCModbusCommunication *modbusComm, QObject *parent)
+PLCServoInterface::PLCServoInterface(PLCModbusWorker *modbusWorker, QObject *parent)
     : QObject(parent),
-    m_modbusComm(modbusComm)
+    m_modbusWorker(modbusWorker)
 {
-    // Connect log messages
-    connect(m_modbusComm, &PLCModbusCommunication::logMessage, this, &PLCServoInterface::logMessage);
+    connect(m_modbusWorker, &PLCModbusWorker::logMessage, this, &PLCServoInterface::logMessage);
+    connect(m_modbusWorker, &PLCModbusWorker::writeCompleted, this, &PLCServoInterface::onWriteCompleted);
+    connect(m_modbusWorker, &PLCModbusWorker::errorOccurred, this, &PLCServoInterface::onErrorOccurred);
 }
 
 void PLCServoInterface::setAzimuthPulse(int pulse) {
     uint16_t value = static_cast<uint16_t>(pulse);
-    if (!m_modbusComm->writeRegister(AZIMUTH_PULSE_ADDRESS, value)) {
-        logError("Failed to set azimuth pulse");
-    }
+    int address = AZIMUTH_PULSE_ADDRESS;
+    m_pendingWrites.insert(address);
+
+    int serverAddress = 2; // Set your Modbus server address (slave ID)
+    m_modbusWorker->writeRegister(serverAddress, address, value);
 }
 
 void PLCServoInterface::setAzimuthDirection(bool direction) {
     uint16_t value = direction ? 1 : 0;
-    if (!m_modbusComm->writeRegister(AZIMUTH_DIRECTION_ADDRESS, value)) {
-        logError("Failed to set azimuth direction");
-    }
+    int address = AZIMUTH_DIRECTION_ADDRESS;
+    m_pendingWrites.insert(address);
+
+    int serverAddress = 2;
+    m_modbusWorker->writeRegister(serverAddress, address, value);
 }
+
 
 void PLCServoInterface::setElevationPulse(int pulse) {
     uint16_t value = static_cast<uint16_t>(pulse);
-    if (!m_modbusComm->writeRegister(ELEVATION_PULSE_ADDRESS, value)) {
-        logError("Failed to set elevation pulse");
-    }
+    int address = ELEVATION_PULSE_ADDRESS;
+    m_pendingWrites.insert(address);
+    int serverAddress = 2;
+    m_modbusWorker->writeRegister(serverAddress, address, value);
 }
 
 void PLCServoInterface::setElevationDirection(bool direction) {
     uint16_t value = direction ? 1 : 0;
-    if (!m_modbusComm->writeRegister(ELEVATION_DIRECTION_ADDRESS, value)) {
-        logError("Failed to set elevation direction");
+    int address = ELEVATION_DIRECTION_ADDRESS;
+    m_pendingWrites.insert(address);
+    int serverAddress = 2;
+    m_modbusWorker->writeRegister(serverAddress, address, value);
+}
+
+void PLCServoInterface::onWriteCompleted(int address) {
+    if (m_pendingWrites.contains(address)) {
+        m_pendingWrites.remove(address);
+        emit logMessage(QString("Write to address %1 completed successfully.").arg(address));
     }
+}
+
+void PLCServoInterface::onErrorOccurred(const QString &message) {
+    logError(message);
 }
 
 void PLCServoInterface::logError(const QString &message) {
     emit logMessage(message);
-    qWarning() << "PLCServoInterface:" << message;
+    qDebug() << "PLCServoInterface:" << message;
 }
 

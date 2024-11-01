@@ -3,87 +3,168 @@
 
 CameraSystem::CameraSystem(QObject *parent)
     : QObject(parent),
-      m_cameraPipelineDay(nullptr),
-      m_displayWidget(nullptr),
-      m_isDayCameraActive(true),
-      m_processingMode(MODE_IDLE)
+    m_cameraPipelineDay(nullptr),
+    //m_cameraPipelineNight(nullptr),
+    m_displayWidget(nullptr),
+    m_dayCameraInterface(new DayCameraInterface(this)),
+    m_nightCameraInterface(new NightCameraInterface(this)),
+    m_lensInterface(new LensInterface(this)),
+    m_isDayCameraActive(true),
+    m_processingMode(MODE_IDLE),
+    m_processMode(IdleMode),
+    m_isDayCameraConnected(false),
+    m_isNightCameraConnected(false),
+    m_isLensConnected(false)
 {
+    initializeCameraInterfaces();
     initializePipelines();
+    qDebug() << "CameraSystem constructor called";
+
 }
 
 CameraSystem::~CameraSystem() {
-    if (m_cameraPipelineDay) {
-        m_cameraPipelineDay->stop();
-        delete m_cameraPipelineDay;
-    }
+    shutdown();
+
 }
 
 void CameraSystem::initializePipelines() {
-    int cameraIndex = m_isDayCameraActive ? 0 : 1;
-    m_cameraPipelineDay = new CameraPipelineDay(0, this);
-
-    connect(m_cameraPipelineDay, &CameraPipelineDay::newFrameAvailable, this, &CameraSystem::onNewFrameAvailable);
-    connect(m_cameraPipelineDay, &CameraPipelineDay::trackedTargetsUpdated, this, &CameraSystem::onTrackedIdsUpdated, Qt::QueuedConnection);
-    connect(m_cameraPipelineDay, &CameraPipelineDay::selectedTrackLost, this, &CameraSystem::onSelectedTrackLost);
-    //m_cameraPipelineDay->start();
+    // Initialize camera pipelines based on active camera
+    if (m_isDayCameraActive) {
+        m_cameraPipelineDay = new CameraPipelineDay(0, this);
+        connect(m_cameraPipelineDay, &CameraPipelineDay::newFrameAvailable, this, &CameraSystem::onNewFrameAvailable);
+        connect(m_cameraPipelineDay, &CameraPipelineDay::trackedTargetsUpdated, this, &CameraSystem::onTrackedIdsUpdated, Qt::QueuedConnection);
+        connect(m_cameraPipelineDay, &CameraPipelineDay::selectedTrackLost, this, &CameraSystem::onSelectedTrackLost);
+    }/* else {
+        m_cameraPipelineNight = new CameraPipelineNight(1, this);
+        connect(m_cameraPipelineNight, &CameraPipelineNight::newFrameAvailable, this, &CameraSystem::onNewFrameAvailable);
+        connect(m_cameraPipelineNight, &CameraPipelineNight::trackedTargetsUpdated, this, &CameraSystem::onTrackedIdsUpdated, Qt::QueuedConnection);
+        connect(m_cameraPipelineNight, &CameraPipelineNight::selectedTrackLost, this, &CameraSystem::onSelectedTrackLost);
+    }*/
 }
 
 void CameraSystem::initializeCameraInterfaces() {
-    // Initialize day camera interface
-   /* m_dayCameraInterface = new DayCameraInterface();
-    m_dayCameraThread = new QThread(this);
-    m_dayCameraInterface->moveToThread(m_dayCameraThread);
-    m_dayCameraThread->start();
+    // Open serial ports for camera interfaces
+    if (!m_dayCameraInterface->openSerialPort("/dev/pts/35")) {
+        qWarning() << "Failed to open day camera serial port.";
+            // Handle failure
+    }
+    if (!m_nightCameraInterface->openSerialPort("/dev/pts/32")) {
+        qWarning() << "Failed to open night camera serial port.";
+    }
+    if (!m_lensInterface->openSerialPort("/dev/pts/29")) {
+        qWarning() << "Failed to open lens serial port.";
+    }
 
-    // Initialize night camera interface
-    m_nightCameraInterface = new NightCameraInterface();
-    m_nightCameraThread = new QThread(this);
-    m_nightCameraInterface->moveToThread(m_nightCameraThread);
-    m_nightCameraThread->start();*/
 
-    // Initialize lens interface
-    m_lensInterface = new LensInterface();
-    m_lensThread = new QThread(this);
-    m_lensInterface->moveToThread(m_lensThread);
-    m_lensThread->start();
+    if (m_dayCameraInterface) {
+        connect(m_dayCameraInterface, &DayCameraInterface::responseReceived, this, &CameraSystem::onDayInterfaceResponseReceived);
+        //connect(m_dayCameraInterface, &DayCameraInterface::errorOccurred, this, &CameraSystem::onErrorOccurred);
 
-    // Connect signals and slots
-    // Handle responses and errors
+        connect(m_dayCameraInterface, &DayCameraInterface::statusChanged, this, &CameraSystem::onDayCameraInterfaceStatusChanged);
+    }
+    if (m_nightCameraInterface) {
+        connect(m_nightCameraInterface, &NightCameraInterface::responseReceived, this, &CameraSystem::onNightInterfaceResponseReceived);
+        //connect(m_nightCameraInterface, &NightCameraInterface::errorOccurred, this, &CameraSystem::onErrorOccurred);
+
+        connect(m_nightCameraInterface, &NightCameraInterface::statusChanged, this, &CameraSystem::onNightCameraInterfaceStatusChanged);
+    }
+    if (m_lensInterface) {
+        connect(m_lensInterface, &LensInterface::responseReceived, this, &CameraSystem::onLensResponseReceived);
+        //connect(m_lensInterface, &LensInterface::errorOccurred, this, &CameraSystem::onErrorOccurred);
+
+        connect(m_lensInterface, &LensInterface::statusChanged, this, &CameraSystem::onLensInterfaceStatusChanged);
+    }
 }
+
+void CameraSystem::onDayInterfaceResponseReceived(const QByteArray &response){
+      emit dayResponseReceived(response);
+}
+void CameraSystem::onNightInterfaceResponseReceived(const QByteArray &response){
+    emit nightResponseReceived(response);
+}
+void CameraSystem::onLensResponseReceived(const QString &response){
+    emit lensResponseReceived(response);
+}
+
+// Slots to handle status changes
+void CameraSystem::onDayCameraInterfaceStatusChanged(bool isConnected) {
+    m_isDayCameraConnected = isConnected;
+    emit dayCameraInterfaceStatusChanged(isConnected);
+
+    qDebug() << "Day Camera Interface connection status changed:" << isConnected;
+
+    // Handle reconnection logic if necessary
+}
+
+void CameraSystem::onNightCameraInterfaceStatusChanged(bool isConnected) {
+    m_isNightCameraConnected = isConnected;
+    emit nightCameraInterfaceStatusChanged(isConnected);
+
+    qDebug() << "Night Camera Interface connection status changed:" << isConnected;
+
+    // Handle reconnection logic if necessary
+}
+
+void CameraSystem::onLensInterfaceStatusChanged(bool isConnected) {
+    m_isLensConnected = isConnected;
+    emit lensInterfaceStatusChanged(isConnected);
+
+    qDebug() << "Lens Interface connection status changed:" << isConnected;
+
+    // Handle reconnection logic if necessary
+}
+
 
 void CameraSystem::start() {
-    if (m_cameraPipelineDay) {
+    if (m_isDayCameraActive && m_cameraPipelineDay) {
         m_cameraPipelineDay->start();
-    }
+    } /*else if (!m_isDayCameraActive && m_cameraPipelineNight) {
+        //m_cameraPipelineNight->start();
+    }*/
 }
 
-void CameraSystem::stop() {
+void CameraSystem::shutdown() {
     if (m_cameraPipelineDay) {
         m_cameraPipelineDay->stop();
+        delete m_cameraPipelineDay;
+        m_cameraPipelineDay = nullptr;
+
     }
+    /*if (m_cameraPipelineNight) {
+        delete m_cameraPipelineNight;
+    }*/
+    if (m_dayCameraInterface) {
+        m_dayCameraInterface->shutdown();
+    }
+    if (m_nightCameraInterface) {
+        m_nightCameraInterface->shutdown();
+    }
+    if (m_lensInterface) {
+        m_lensInterface->shutdown();
+    }
+
+    qDebug() << "CameraSystem has been shut down.";
 }
 
 void CameraSystem::switchToDayCamera() {
     if (!m_isDayCameraActive) {
+        shutdown();
         m_isDayCameraActive = true;
-        if (m_cameraPipelineDay) {
-            m_cameraPipelineDay->stop();
-            delete m_cameraPipelineDay;
-            m_cameraPipelineDay = nullptr;
-        }
+       // delete m_cameraPipelineNight;
+        //m_cameraPipelineNight = nullptr;
         initializePipelines();
+        start();
     }
 }
 
-void CameraSystem::switchToFLIRCamera() {
+void CameraSystem::switchToNightCamera() {
     if (m_isDayCameraActive) {
+        shutdown();
         m_isDayCameraActive = false;
-        if (m_cameraPipelineDay) {
-            m_cameraPipelineDay->stop();
-            delete m_cameraPipelineDay;
-            m_cameraPipelineDay = nullptr;
-        }
+        delete m_cameraPipelineDay;
+        m_cameraPipelineDay = nullptr;
         initializePipelines();
+        start();
     }
 }
 
@@ -97,45 +178,50 @@ void CameraSystem::onNewFrameAvailable(uchar4* frame, int width, int height) {
     }
 }
 
-void CameraSystem::setSelectedTrackId(int trackId) {
-    if (m_cameraPipelineDay) {
-        m_cameraPipelineDay->setSelectedTrackId(trackId);
+
+
+void CameraSystem::zoomIn() {
+    if (m_isDayCameraActive) {
+        m_dayCameraInterface->zoomIn();
+    } else {
+        m_nightCameraInterface->setDigitalZoom(2); // Example zoom level
     }
 }
 
-void CameraSystem::zoomIn() {
-    // Implement zoom in command to camera
-}
-
 void CameraSystem::zoomOut() {
-    // Implement zoom out command to camera
+    if (m_isDayCameraActive) {
+        m_dayCameraInterface->zoomOut();
+    } else {
+        m_nightCameraInterface->setDigitalZoom(1); // Reset zoom
+    }
 }
 
 void CameraSystem::resetZoom() {
-    // Implement reset zoom
+    if (m_isDayCameraActive) {
+        m_dayCameraInterface->zoomStop();
+    } else {
+        m_nightCameraInterface->setDigitalZoom(1); // Reset zoom
+    }
 }
 
 void CameraSystem::toggleDayNightMode() {
     if (m_isDayCameraActive) {
-        switchToFLIRCamera();
+        switchToNightCamera();
     } else {
         switchToDayCamera();
     }
 }
 
+
 void CameraSystem::switchCameraMode() {
     // Implement switch camera mode
 }
 
-void CameraSystem::setDetectionMode() {
-    m_cameraPipelineDay->setProcessingMode(MODE_DETECTION);
-}
-
 void CameraSystem::setProcessingMode(ProcessMode mode)
 {
-
+    m_processMode = mode;
     guint interval;
-    switch(mode) {
+    switch(m_processMode) {
     case IdleMode:
         m_processingMode = MODE_IDLE;
         interval = 1000;
@@ -156,7 +242,7 @@ void CameraSystem::setProcessingMode(ProcessMode mode)
         // Handle unexpected indices
         m_processingMode = MODE_IDLE;
         interval = 1000;
-        qWarning() << "Unknown mode index selected:" << index;
+       qDebug() << "Unknown mode index selected:" << index;
         break;
     }
 
@@ -168,6 +254,16 @@ void CameraSystem::setProcessingMode(ProcessMode mode)
     m_cameraPipelineDay->setPGIEInterval(interval);
 }
 
+CameraSystem::ProcessMode CameraSystem::getProcessingMode()
+{
+    return m_processMode;
+}
+
+void CameraSystem::setSelectedTrackId(int trackId) {
+    if (m_cameraPipelineDay) {
+        m_cameraPipelineDay->setSelectedTrackId(trackId);
+    }
+}
 
 void CameraSystem::onSelectedTrackLost(int trackId)
 {
@@ -178,6 +274,9 @@ void CameraSystem::onTrackedIdsUpdated(const QSet<int> &trackIds)
 {
     emit trackedIdsUpdated(trackIds);
 }
+
+
+
 
 void CameraSystem::processFrame()
 {
@@ -191,4 +290,10 @@ void CameraSystem::processFrame()
     double elevation = 0.0; // Replace with calculated value
 
     emit targetPositionUpdated(azimuth, elevation);
+}
+
+void CameraSystem::onErrorOccurred(const QString &error) {
+    // Optionally process the error before emitting
+    qDebug() << "SensorSystem received errorOccurred:" << error;
+    emit errorOccurred(error);
 }

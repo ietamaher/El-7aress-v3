@@ -24,14 +24,22 @@ public:
     void startFiring(int frequency);
     void stopFiring();
 
+public slots:
+    void handleActuatorStatusChanged(bool connected);
+    void handleErrorOccurred(const QString &error);
+
 signals:
+    void errorOccurred(const QString &error);
     void armedStatusChanged(bool armed);
+    void actuatorStatusChanged(bool connected);
 
 private:
     bool m_armed;
     bool m_prepared;
     ServoActuatorInterface *m_servoActuatorInterface;
     PLCSolenoidInterface *m_plcSolenoidInterface;
+
+    void setServoInterface(ServoActuatorInterface *servoInterface);
 };
 
 #endif // WEAPONSYSTEM_H

@@ -3,43 +3,79 @@
 
 ServoActuatorInterface::ServoActuatorInterface(QObject *parent)
     : QObject(parent),
-      servoSerial(nullptr),
+      servoSerial(new QSerialPort(this)), m_isConnected(false),
       timeoutTimer(new QTimer(this))
 {
     connect(timeoutTimer, &QTimer::timeout, this, &ServoActuatorInterface::handleTimeout);
 }
 
-ServoActuatorInterface::~ServoActuatorInterface() {
-    if (servoSerial) {
+ServoActuatorInterface::~ServoActuatorInterface()
+{
+    shutdown();
+}
+
+bool ServoActuatorInterface::openSerialPort(const QString &portName) {
+    if (servoSerial->isOpen()) {
         servoSerial->close();
-        servoSerial->deleteLater();
+    }
+
+    servoSerial->setPortName(portName);
+    servoSerial->setBaudRate(QSerialPort::Baud4800);
+    servoSerial->setDataBits(QSerialPort::Data8);
+    servoSerial->setParity(QSerialPort::NoParity);
+    servoSerial->setStopBits(QSerialPort::OneStop);
+    servoSerial->setFlowControl(QSerialPort::NoFlowControl);
+
+    if (servoSerial->open(QIODevice::ReadOnly)) {
+        connect(servoSerial, &QSerialPort::readyRead, this, &ServoActuatorInterface::processIncomingData);
+        connect(servoSerial, &QSerialPort::errorOccurred, this, &ServoActuatorInterface::handleSerialError);
+        qDebug() << "Opened radar serial port:" << portName;
+        m_isConnected = true;
+        emit statusChanged(m_isConnected);
+        return true;
+    } else {
+       qDebug() << "Failed to open radar serial port:" << servoSerial->errorString();
+        emit errorOccurred(servoSerial->errorString());
+        m_isConnected = false;
+        emit statusChanged(m_isConnected);
+        return false;
     }
 }
 
-void ServoActuatorInterface::setSerialPort(QSerialPort *serial) {
-    if (servoSerial) {
-        disconnect(servoSerial, &QSerialPort::readyRead, this, &ServoActuatorInterface::processIncomingData);
+void ServoActuatorInterface::closeSerialPort() {
+    if (servoSerial->isOpen()) {
         servoSerial->close();
-        servoSerial->deleteLater();
+        qDebug() << "Closed radar serial port:" << servoSerial->portName();
+        m_isConnected = false;
+        emit statusChanged(m_isConnected);
     }
+}
 
-    servoSerial = serial;
-    if (servoSerial) {
-        // Configure the serial port if necessary
-        // servoSerial->setBaudRate(QSerialPort::Baud9600);
-        // servoSerial->setDataBits(QSerialPort::Data8);
-        // servoSerial->setParity(QSerialPort::NoParity);
-        // servoSerial->setStopBits(QSerialPort::OneStop);
-        // servoSerial->setFlowControl(QSerialPort::NoFlowControl);
+void ServoActuatorInterface::shutdown() {
+    closeSerialPort();
+    // Additional cleanup if necessary
+}
 
-        if (!servoSerial->isOpen()) {
-            if (!servoSerial->open(QIODevice::ReadWrite)) {
-                qWarning() << "Failed to open servo actuator serial port";
-                return;
-            }
+
+
+void ServoActuatorInterface::handleSerialError(QSerialPort::SerialPortError error) {
+    if (error == QSerialPort::ResourceError || error == QSerialPort::DeviceNotFoundError) {
+       qDebug() << "Radar serial port error occurred:" << servoSerial->errorString();
+        closeSerialPort();
+        QTimer::singleShot(1000, this, &ServoActuatorInterface::attemptReconnection);
+    }
+}
+
+void ServoActuatorInterface::attemptReconnection() {
+    if (!servoSerial->isOpen()) {
+        if (openSerialPort(servoSerial->portName())) {
+            qDebug() << "Radar serial port reconnected.";
+            // Reinitialize if necessary
+        } else {
+           qDebug() << "Failed to reopen actuator serial port:" << servoSerial->errorString();
+            // Retry after some time
+            QTimer::singleShot(5000, this, &ServoActuatorInterface::attemptReconnection);
         }
-
-        connect(servoSerial, &QSerialPort::readyRead, this, &ServoActuatorInterface::processIncomingData);
     }
 }
 
@@ -52,10 +88,10 @@ void ServoActuatorInterface::sendCommand(const QString &command) {
             // Start timeout timer to wait for a response
             timeoutTimer->start(1000); // Adjust timeout as needed
         } else {
-            qWarning() << "Failed to write command to servo actuator";
+           qDebug() << "Failed to write command to servo actuator";
         }
     } else {
-        qWarning() << "Servo serial port is not open";
+       qDebug() << "Servo serial port is not open";
     }
 }
 
@@ -120,6 +156,6 @@ void ServoActuatorInterface::processIncomingData() {
 }
 
 void ServoActuatorInterface::handleTimeout() {
-    qWarning() << "Timeout waiting for response from servo actuator";
+   qDebug() << "Timeout waiting for response from servo actuator";
     // Handle timeout (e.g., retry command, notify user)
 }

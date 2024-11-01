@@ -268,13 +268,13 @@ GstFlowReturn CameraPipelineNight::on_new_sample(GstAppSink *sink, gpointer data
     CameraPipelineNight *self = static_cast<CameraPipelineNight *>(data);
     GstSample *sample = gst_app_sink_pull_sample(sink);
     if (!sample) {
-        qWarning() << "Failed to pull sample from appsink";
+       qDebug() << "Failed to pull sample from appsink";
         return GST_FLOW_ERROR;
     }
 
     GstCaps *caps = gst_sample_get_caps(sample);
     if (!caps) {
-        qWarning() << "Failed to get caps from sample";
+       qDebug() << "Failed to get caps from sample";
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;
     }
@@ -283,21 +283,21 @@ GstFlowReturn CameraPipelineNight::on_new_sample(GstAppSink *sink, gpointer data
     int width, height;
     if (!gst_structure_get_int(structure, "width", &width) ||
         !gst_structure_get_int(structure, "height", &height)) {
-        qWarning() << "Failed to get width and height from caps";
+       qDebug() << "Failed to get width and height from caps";
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;
     }
 
     GstBuffer *buffer = gst_sample_get_buffer(sample);
     if (!buffer) {
-        qWarning() << "Failed to get buffer from sample";
+       qDebug() << "Failed to get buffer from sample";
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;
     }
 
     GstMapInfo map;
     if (!gst_buffer_map(buffer, &map, GST_MAP_READ)) {
-        qWarning() << "Failed to map buffer";
+       qDebug() << "Failed to map buffer";
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;
     }
@@ -305,7 +305,7 @@ GstFlowReturn CameraPipelineNight::on_new_sample(GstAppSink *sink, gpointer data
     // Assuming RGB format
     const guint8 *dataRGBA = map.data;
     if (!dataRGBA) {
-        qWarning() << "Failed to access RGB data";
+       qDebug() << "Failed to access RGB data";
         gst_buffer_unmap(buffer, &map);
         gst_sample_unref(sample);
         return GST_FLOW_ERROR;

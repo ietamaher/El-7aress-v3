@@ -2,6 +2,7 @@
 #define SENSORSYSTEM_H
 
 #include <QObject>
+#include <QPointer>
 #include <QThread>
 #include <QSerialPort>
 #include "lrfinterface.h"
@@ -15,6 +16,8 @@ public:
     explicit SensorSystem(QObject *parent = nullptr);
     ~SensorSystem();
 
+
+    void shutdown();
     // Setter methods for interfaces
     void setLRFInterface(LRFInterface *lrfInterface);
     void setGyroInterface(GyroInterface *gyroInterface);
@@ -60,6 +63,12 @@ public slots:
     void handleSelfCheckResult(quint8 systemStatus, quint8 temperatureAlarm, quint8 biasVoltageFault, quint8 counterMalfunction);
     void handleRangingDataReceived(quint8 status, quint16 distance, quint8 decimalPlaces, quint8 echoStatus);
 
+    void onLRFInterfaceDestroyed(QObject *obj);
+
+    void handleLRFConnectionStatusChanged(bool connected);
+    void handleRadarConnectionStatusChanged(bool connected);
+    void handleGyroConnectionStatusChanged(bool connected);
+
 signals:
     // Signals to be emitted to MainWindow or other classes
     void errorOccurred(const QString &error);
@@ -75,8 +84,14 @@ signals:
     void temperatureUpdated(double temperature);
     void pressureUpdated(double pressure);
 
+    void lrfConnectionStatusChanged(bool connected);
+    void radarConnectionStatusChanged(bool connected);
+    void gyroConnectionStatusChanged(bool connected);
+
 private:
-    LRFInterface *m_lrfInterface;
+    //LRFInterface *m_lrfInterface;
+    QPointer<LRFInterface> m_lrfInterface;
+
     GyroInterface *m_gyroInterface;
     RadarInterface *m_radarInterface;
     PLCSensorInterface *m_plcSensorInterface;
@@ -106,6 +121,7 @@ private:
     double m_yaw;
 
     void initializeLRF();
+
 };
 
 #endif // SENSORSYSTEM_H

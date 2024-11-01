@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QSerialPort>
 #include <QMutex>
+#include <QWaitCondition>
+#include <QByteArray>
 #include <QThread>
 
 
@@ -14,27 +16,25 @@ public:
     explicit GyroInterface(QObject *parent = nullptr);
     ~GyroInterface();
 
-    void start();
-    void stop();
-    void setSerialPort(QSerialPort *serial);
+    bool openSerialPort(const QString &portName);
+    void closeSerialPort();
+    void shutdown();
 
 signals:
-    void errorOccurred(const QString &error);
     void gyroDataReceived(double Roll, double Pitch, double Yaw);
+    void errorOccurred(const QString &error);
+    void statusChanged(bool isConnected);
 
 private slots:
-    //void readGyroData();
+    void processGyroData();
+    void handleSerialError(QSerialPort::SerialPortError error);
+    void attemptReconnection();
 
 private:
-    QThread *m_thread;
-    bool m_running;
-    QSerialPort *gyroSerial;
-    bool abort;
-    QMutex mutex;
-    // Add members for serial port communication or other interfaces
-    // e.g., QSerialPort *m_serialPort;
 
-    void processGyroData();
+    QSerialPort *gyroSerial;
+    bool m_isConnected;
+
 };
 
 #endif // GYROINTERFACE_H

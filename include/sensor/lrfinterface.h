@@ -13,8 +13,13 @@ public:
     explicit LRFInterface(QObject *parent = nullptr);
     ~LRFInterface();
 
-    void setSerialPort(QSerialPort *serial);
+    bool openSerialPort(const QString &portName);
+    void closeSerialPort();
+    void shutdown();
 
+
+    void setSerialPort(QSerialPort *serial);
+    void updateConnectionStatus(bool isConnected);
 signals:
     void errorOccurred(const QString &error);
     void frequencySet(quint8 frequency, quint8 majorVersion, quint8 secondaryVersion, quint8 maintenanceVersion);
@@ -22,6 +27,8 @@ signals:
     void laserCountReceived(quint32 count);
     void selfCheckResult(quint8 systemStatus, quint8 temperatureAlarm, quint8 biasVoltageFault, quint8 counterMalfunction);
     void rangingDataReceived(quint8 status, quint16 distance, quint8 decimalPlaces, quint8 echoStatus);
+
+    void statusChanged(bool connected);
 
 public slots:
     void sendSelfCheck();
@@ -31,6 +38,11 @@ public slots:
     void setFrequency(int frequency);
     void querySettingValue();
     void queryAccumulatedLaserCount();
+
+private slots:
+    void processIncomingData();
+    void handleSerialError(QSerialPort::SerialPortError error);
+    void attemptReconnection();
 
 //protected:
     //void run() override;
@@ -72,13 +84,14 @@ private:
     void handleSettingValueResponse(const QByteArray &response);
     void handleLaserCountResponse(const QByteArray &response);
 
-    void processIncomingData();
+    //void processIncomingData();
 
     QSerialPort *lrfSerial;
     bool abort;
     QMutex mutex;
     QWaitCondition condition;
     QByteArray readBuffer; // Buffer to accumulate incoming data
+    bool m_isConnected;
 };
 
 #endif // LRFInterface_H

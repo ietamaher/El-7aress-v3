@@ -3,12 +3,13 @@
 
 #include <QObject>
 #include <QTimer>
-#include "include/comm/plcmodbuscommunication.h"
+#include <QSet>
+#include "include/comm/plcmodbusworker.h"
 
 class PLCSolenoidInterface : public QObject {
     Q_OBJECT
 public:
-    explicit PLCSolenoidInterface(PLCModbusCommunication *modbusComm, QObject *parent = nullptr);
+    explicit PLCSolenoidInterface(PLCModbusWorker *modbusComm, QObject *parent = nullptr);
 
     void startFiring(int frequency); // Frequency in Hz
     void stopFiring();
@@ -18,14 +19,16 @@ signals:
 
 private slots:
     void triggerSolenoid();
+    void onWriteCompleted(int address);
+    void onErrorOccurred(const QString &message);
 
 private:
-    PLCModbusCommunication *m_modbusComm;
+    PLCModbusWorker *m_modbusComm;
     QTimer *m_firingTimer;
 
     // Modbus register address for solenoid control
     static constexpr int SOLENOID_CONTROL_ADDRESS = 10;
-
+    QSet<int> m_pendingWrites;
     void logError(const QString &message);
 };
 

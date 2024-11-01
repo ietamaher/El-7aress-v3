@@ -5,10 +5,10 @@
 void IdleState::enter(StateManager* manager) {
     qDebug() << "Entering Idle Mode";
     if (manager->getGimbalController()) {
-        manager->getGimbalController()->setMotionMode(nullptr); // No motion mode
+        manager->getGimbalController()->setMotionMode(MotionModeType::None); // No motion mode
     }
     if (manager->getCameraSystem()) {
-        manager->getCameraSystem()->start();
+        //manager->getCameraSystem()->shutdown();
         manager->getCameraSystem()->setProcessingMode(CameraSystem::IdleMode);
     }
     if (manager->getWeaponSystem()) manager->getWeaponSystem()->arm(false);
@@ -16,7 +16,7 @@ void IdleState::enter(StateManager* manager) {
 }
 
 
-void IdleState::exit(StateManager* manager) {
+void IdleState::exit(StateManager* manager, OperationalMode nextMode) {
     qDebug() << "Exiting Idle Mode";
     // Perform any cleanup if necessary
 }

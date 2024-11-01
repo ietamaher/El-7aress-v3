@@ -3,21 +3,18 @@
 
 #include <QObject>
 #include <QSerialPort>
-#include <QMutex>
-#include <QWaitCondition>
 
-
-class LensInterface : public QObject
-{
+class LensInterface : public QObject {
     Q_OBJECT
-
 public:
     explicit LensInterface(QObject *parent = nullptr);
     ~LensInterface();
 
-    void setSerialPort(QSerialPort *serial);
+    bool openSerialPort(const QString &portName);
+    void closeSerialPort();
+    void shutdown();
 
-    // Lens Command Methods
+    // Lens control methods
     void moveToWFOV();
     void moveToNFOV();
     void moveToIntermediateFOV(int percentage);
@@ -34,19 +31,21 @@ public:
     void turnOnRangeCompensation();
     void turnOffRangeCompensation();
 
+signals:
+    void responseReceived(const QString &response);
+    void errorOccurred(const QString &error);
+    void statusChanged(bool isConnected);
+    void commandSent();
+
+private slots:
+    void handleSerialError(QSerialPort::SerialPortError error);
+    void attemptReconnection();
 
 private:
     QSerialPort *lensSerial;
-    QMutex mutex;
-    QWaitCondition condition;
-    bool abort;
+    bool m_isConnected;
 
     QString sendCommand(const QString &command);
-
-signals:
-    void commandSent();
-    void responseReceived(const QString &response);
-
 };
 
 #endif // LENSINTERFACE_H

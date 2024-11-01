@@ -10,32 +10,52 @@ WeaponSystem::WeaponSystem(QObject *parent)
 
 {
     // Initialize the serial port for the servo actuator
-    QSerialPort *servoSerial = new QSerialPort(this);
-    servoSerial->setPortName("/dev/ttyUSB2"); // Adjust the port name as needed
-    servoSerial->setBaudRate(QSerialPort::Baud9600); // Adjust baud rate as needed
-    servoSerial->setDataBits(QSerialPort::Data8);
-    servoSerial->setParity(QSerialPort::NoParity);
-    servoSerial->setStopBits(QSerialPort::OneStop);
-    servoSerial->setFlowControl(QSerialPort::NoFlowControl);
+    if (m_servoActuatorInterface->openSerialPort("/dev/pts/23")) {
+        setServoInterface(m_servoActuatorInterface);
+    } else {
+       qDebug() << "Failed to open m_servoActuatorserial port";
+        // Handle failure
+    }
 
-    m_servoActuatorInterface->setSerialPort(servoSerial);
-
-    // Connect signals from the servo actuator
-    connect(m_servoActuatorInterface, &ServoActuatorInterface::positionReached,
-            this, [](int position) {
-                qDebug() << "Actuator reached position:" << position;
-                // Handle position reached
-            });
-
-    connect(m_servoActuatorInterface, &ServoActuatorInterface::alarmDetected,
-            this, [](const QString &alarmMessage) {
-                qWarning() << "Actuator alarm detected:" << alarmMessage;
-                // Handle alarm
-            });
 }
 
 WeaponSystem::~WeaponSystem() {
     // Clean up...
+}
+
+void WeaponSystem::setServoInterface(ServoActuatorInterface *servoInterface) {
+    if (m_servoActuatorInterface) {
+        disconnect(m_servoActuatorInterface, nullptr, this, nullptr);
+    }
+    m_servoActuatorInterface = servoInterface;
+    if (m_servoActuatorInterface) {
+        //connect(m_radarInterface, &RadarInterface::targetUpdated, this, &SensorSystem::onRadarDataReceived);
+        connect(m_servoActuatorInterface, &ServoActuatorInterface::errorOccurred, this, &WeaponSystem::handleErrorOccurred);
+        connect(m_servoActuatorInterface, &ServoActuatorInterface::statusChanged, this, &WeaponSystem::handleActuatorStatusChanged);
+
+        // Connect signals from the servo actuator
+        connect(m_servoActuatorInterface, &ServoActuatorInterface::positionReached,
+                this, [](int position) {
+                    qDebug() << "Actuator reached position:" << position;
+                    // Handle position reached
+                });
+
+        connect(m_servoActuatorInterface, &ServoActuatorInterface::alarmDetected,
+                this, [](const QString &alarmMessage) {
+                   qDebug() << "Actuator alarm detected:" << alarmMessage;
+                    // Handle alarm
+                });
+    }
+}
+
+void WeaponSystem::handleActuatorStatusChanged(bool connected){
+    emit actuatorStatusChanged(connected);
+}
+
+void WeaponSystem::handleErrorOccurred(const QString &error) {
+    // Optionally process the error before emitting
+    qDebug() << "SensorSystem received errorOccurred:" << error;
+    emit errorOccurred(error);
 }
 
 void WeaponSystem::setPLCSolenoidInterface(PLCSolenoidInterface *solenoidInterface) {
@@ -46,7 +66,7 @@ void WeaponSystem::startFiring(int frequency) {
     if (m_armed && m_plcSolenoidInterface) {
         m_plcSolenoidInterface->startFiring(frequency);
     } else {
-        qWarning() << "Weapon is not armed or solenoid interface is not set.";
+       qDebug() << "Weapon is not armed or solenoid interface is not set.";
     }
 }
 

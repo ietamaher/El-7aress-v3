@@ -3,30 +3,16 @@
 #include <QTimer>
 
 LRFInterface::LRFInterface(QObject *parent)
-    : QObject(parent), lrfSerial(nullptr), abort(false)
+    : QObject(parent), lrfSerial(new QSerialPort(this)), abort(false), m_isConnected(false)
 {}
 
 LRFInterface::~LRFInterface() {
-    qDebug() << "LRFInterface Destructor Called";
-    mutex.lock();
-    abort = true;
-    condition.wakeOne();
-    mutex.unlock();
-
-    if (lrfSerial && lrfSerial->isOpen()) {
-        qDebug() << "Closing serial port:" << lrfSerial->portName();
-        lrfSerial->close();
-    }
-
-    //wait();
+    shutdown();
 }
 
 void LRFInterface::setSerialPort(QSerialPort *serial) {
     lrfSerial = serial;
     if (lrfSerial) {
-        // Move the serial port to this thread
-      //lrfSerial->moveToThread(this);
-
         // Connect readyRead signal to processIncomingData slot
         connect(lrfSerial, &QSerialPort::readyRead, this, &LRFInterface::processIncomingData);
 
@@ -35,12 +21,81 @@ void LRFInterface::setSerialPort(QSerialPort *serial) {
             if (error != QSerialPort::NoError) {
                 qDebug() << "Serial Port Error:" << lrfSerial->errorString();
                 emit errorOccurred(lrfSerial->errorString());
+                updateConnectionStatus(false);
             }
         });
     }
 }
+bool LRFInterface::openSerialPort(const QString &portName) {
+    if (lrfSerial->isOpen()) {
+        lrfSerial->close();
+    }
+
+    lrfSerial->setPortName(portName);
+    lrfSerial->setBaudRate(QSerialPort::Baud9600);
+    lrfSerial->setDataBits(QSerialPort::Data8);
+    lrfSerial->setParity(QSerialPort::NoParity);
+    lrfSerial->setStopBits(QSerialPort::OneStop);
+    lrfSerial->setFlowControl(QSerialPort::NoFlowControl);
+
+    if (lrfSerial->open(QIODevice::ReadWrite)) {
+        connect(lrfSerial, &QSerialPort::readyRead, this, &LRFInterface::processIncomingData);
+        connect(lrfSerial, &QSerialPort::errorOccurred, this, &LRFInterface::handleSerialError);
+        qDebug() << "Opened serial port:" << portName;
+        m_isConnected = true;
+        emit statusChanged(m_isConnected);
+        return true;
+    } else {
+       qDebug() << "Failed to open serial port:" << lrfSerial->errorString();
+        emit errorOccurred(lrfSerial->errorString());
+        m_isConnected = false;
+        emit statusChanged(m_isConnected);
+        return false;
+    }
+}
+
+void LRFInterface::shutdown() {
+    // Close the serial port
+    closeSerialPort();
+}
+
+void LRFInterface::closeSerialPort() {
+    if (lrfSerial->isOpen()) {
+        lrfSerial->close();
+        qDebug() << "Closed serial port:" << lrfSerial->portName();
+        m_isConnected = false;
+        emit statusChanged(m_isConnected);
+    }
+}
 
 
+void LRFInterface::handleSerialError(QSerialPort::SerialPortError error) {
+    if (error == QSerialPort::ResourceError || error == QSerialPort::DeviceNotFoundError) {
+       qDebug() << "Serial port error occurred:" << lrfSerial->errorString();
+        closeSerialPort();
+        QTimer::singleShot(1000, this, &LRFInterface::attemptReconnection);
+    }
+}
+
+void LRFInterface::attemptReconnection() {
+    if (!lrfSerial->isOpen()) {
+        if (openSerialPort(lrfSerial->portName())) {
+            qDebug() << "Serial port reconnected.";
+            // Reinitialize as necessary
+        } else {
+           qDebug() << "Failed to reopen serial port:" << lrfSerial->errorString();
+            // Retry after some time
+            QTimer::singleShot(5000, this, &LRFInterface::attemptReconnection);
+        }
+    }
+}
+void LRFInterface::updateConnectionStatus(bool isConnected)
+{
+    if (m_isConnected != isConnected) {
+        m_isConnected = isConnected;
+        emit statusChanged(m_isConnected);
+    }
+}
 
 quint8 LRFInterface::calculateChecksum(const QByteArray &command) const {
     quint8 checksum = 0;
@@ -67,11 +122,14 @@ QByteArray LRFInterface::buildCommand(const QByteArray &commandTemplate) const {
 QByteArray LRFInterface::sendCommand(const QByteArray &command) {
     if (lrfSerial && lrfSerial->isOpen()) {
         lrfSerial->write(command);
-        if (!lrfSerial->waitForBytesWritten(100)) { // Reduced timeout
+        if (!lrfSerial->waitForBytesWritten(20)) { // Reduced timeout
+            //TODO Add waitForReadyRead    lrfSerial->waitForReadyRead(1000);!!!
             emit errorOccurred("Failed to write bytes to serial port.");
             return QByteArray();
         }
         // Note: Not waiting for ready read here to allow asynchronous handling
+        m_isConnected = true;
+        emit statusChanged(m_isConnected);
         return command;
     }
     emit errorOccurred("Serial port is not open.");

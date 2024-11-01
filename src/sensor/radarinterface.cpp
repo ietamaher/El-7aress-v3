@@ -1,27 +1,80 @@
 #include "include/sensor/radarinterface.h"
 #include <QDebug>
 #include <QStringList>
+#include <QTimer>
 
 RadarInterface::RadarInterface(QObject *parent)
-    : QObject(parent),
-    radarSerial(nullptr)
+    : QObject(parent), radarSerial(new QSerialPort(this)), m_isConnected(false)
 {
 }
 
 RadarInterface::~RadarInterface()
 {
-    if (radarSerial) {
+    shutdown();
+}
+
+bool RadarInterface::openSerialPort(const QString &portName) {
+    if (radarSerial->isOpen()) {
         radarSerial->close();
-        radarSerial->deleteLater();
+    }
+
+    radarSerial->setPortName(portName);
+    radarSerial->setBaudRate(QSerialPort::Baud4800);
+    radarSerial->setDataBits(QSerialPort::Data8);
+    radarSerial->setParity(QSerialPort::NoParity);
+    radarSerial->setStopBits(QSerialPort::OneStop);
+    radarSerial->setFlowControl(QSerialPort::NoFlowControl);
+
+    if (radarSerial->open(QIODevice::ReadOnly)) {
+        connect(radarSerial, &QSerialPort::readyRead, this, &RadarInterface::processIncomingData);
+        connect(radarSerial, &QSerialPort::errorOccurred, this, &RadarInterface::handleSerialError);
+        qDebug() << "Opened radar serial port:" << portName;
+        m_isConnected = true;
+        emit statusChanged(m_isConnected);
+        return true;
+    } else {
+       qDebug() << "Failed to open radar serial port:" << radarSerial->errorString();
+        emit errorOccurred(radarSerial->errorString());
+        m_isConnected = false;
+        emit statusChanged(m_isConnected);
+        return false;
     }
 }
 
-void RadarInterface::setSerialPort(QSerialPort *serial)
-{
-    radarSerial = serial;
-    if (radarSerial) {
-        // Connect readyRead signal to processIncomingData slot
-        connect(radarSerial, &QSerialPort::readyRead, this, &RadarInterface::processIncomingData);
+void RadarInterface::closeSerialPort() {
+    if (radarSerial->isOpen()) {
+        radarSerial->close();
+        qDebug() << "Closed radar serial port:" << radarSerial->portName();
+        m_isConnected = false;
+        emit statusChanged(m_isConnected);
+    }
+}
+
+void RadarInterface::shutdown() {
+    closeSerialPort();
+    // Additional cleanup if necessary
+}
+
+
+
+void RadarInterface::handleSerialError(QSerialPort::SerialPortError error) {
+    if (error == QSerialPort::ResourceError || error == QSerialPort::DeviceNotFoundError) {
+       qDebug() << "Radar serial port error occurred:" << radarSerial->errorString();
+        closeSerialPort();
+        QTimer::singleShot(1000, this, &RadarInterface::attemptReconnection);
+    }
+}
+
+void RadarInterface::attemptReconnection() {
+    if (!radarSerial->isOpen()) {
+        if (openSerialPort(radarSerial->portName())) {
+            qDebug() << "Radar serial port reconnected.";
+            // Reinitialize if necessary
+        } else {
+           qDebug() << "Failed to reopen radar serial port:" << radarSerial->errorString();
+            // Retry after some time
+            QTimer::singleShot(5000, this, &RadarInterface::attemptReconnection);
+        }
     }
 }
 
@@ -52,7 +105,7 @@ void RadarInterface::parseNMEASentence(const QString &sentence)
     // Validate checksum
     int asteriskIndex = sentence.indexOf('*');
     if (asteriskIndex == -1) {
-        qWarning() << "Invalid NMEA sentence: No checksum";
+       qDebug() << "Invalid NMEA sentence: No checksum";
         return;
     }
 
@@ -61,7 +114,7 @@ void RadarInterface::parseNMEASentence(const QString &sentence)
     bool ok;
     int receivedChecksum = checksumStr.toInt(&ok, 16);
     if (!ok) {
-        qWarning() << "Invalid NMEA checksum format";
+       qDebug() << "Invalid NMEA checksum format";
         return;
     }
 
@@ -71,7 +124,7 @@ void RadarInterface::parseNMEASentence(const QString &sentence)
     }
 
     if (calculatedChecksum != receivedChecksum) {
-        qWarning() << "Checksum mismatch";
+       qDebug() << "Checksum mismatch";
         return;
     }
 
@@ -86,7 +139,7 @@ void RadarInterface::parseNMEASentence(const QString &sentence)
     if (messageType == "RATTM") {
         // Parse RATTM message
         if (fields.size() < 13) {
-            qWarning() << "Incomplete RATTM message";
+           qDebug() << "Incomplete RATTM message";
             return;
         }
 
@@ -96,14 +149,14 @@ void RadarInterface::parseNMEASentence(const QString &sentence)
         // Extract target ID
         target.id = fields[1].toInt(&ok);
         if (!ok) {
-            qWarning() << "Invalid target ID";
+           qDebug() << "Invalid target ID";
             return;
         }
 
         // Extract range (nautical miles to meters)
         double rangeNm = fields[2].toDouble(&ok);
         if (!ok) {
-            qWarning() << "Invalid range";
+           qDebug() << "Invalid range";
             return;
         }
         target.range = rangeNm * 1852.0; // Convert nautical miles to meters
@@ -111,7 +164,7 @@ void RadarInterface::parseNMEASentence(const QString &sentence)
         // Extract azimuth (degrees)
         target.azimuth = fields[3].toDouble(&ok);
         if (!ok) {
-            qWarning() << "Invalid azimuth";
+           qDebug() << "Invalid azimuth";
             return;
         }
 

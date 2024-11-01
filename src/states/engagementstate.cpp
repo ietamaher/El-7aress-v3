@@ -7,16 +7,16 @@ void EngagementState::enter(StateManager* manager) {
     qDebug() << "Entering Engagement Mode";
     if (manager->getWeaponSystem()) manager->getWeaponSystem()->arm(true);
     if (manager->getGimbalController()) {
-        manager->getGimbalController()->setMotionMode(new ManualMotionMode());
+        manager->getGimbalController()->setMotionMode(MotionModeType::Manual);
     }
     //if (manager->getSensorSystem()) manager->getSensorSystem()->activateEngagementSensors(true);
     if (manager->getCameraSystem()) {
-        manager->getCameraSystem()->start();
+        //manager->getCameraSystem()->start();
         manager->getCameraSystem()->setProcessingMode(CameraSystem::ManualTrackingMode);
     }
 }
 
-void EngagementState::exit(StateManager* manager) {
+void EngagementState::exit(StateManager* manager, OperationalMode nextMode) {
     qDebug() << "Exiting Engagement Mode";
     if (manager->getWeaponSystem()) manager->getWeaponSystem()->arm(false);
     if (manager->getGimbalController()) manager->getGimbalController()->enableManualControl(false);

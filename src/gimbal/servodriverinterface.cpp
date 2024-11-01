@@ -56,9 +56,6 @@ bool ServoDriverInterface::connectDevice() {
         m_modbusDevice->disconnectDevice();
     }
 
-    // Remove setServerAddress() call
-    // m_modbusDevice->setServerAddress(m_slaveId); // Not needed
-
     if (!m_modbusDevice->connectDevice()) {
         logError(QString("Failed to connect to Modbus device: %1").arg(m_modbusDevice->errorString()));
         emit connectionStatusChanged(false);

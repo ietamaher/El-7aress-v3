@@ -483,7 +483,7 @@ void MainWindow::processPendingUpdates()
 
 void MainWindow::onTrackIdSelected(QListWidgetItem* current, QListWidgetItem* previous)
 {
-    Q_UNUSED(previous); // Avoid compiler warnings if 'previous' is unused
+    /*Q_UNUSED(previous); // Avoid compiler warnings if 'previous' is unused
 
     if (current)
     {
@@ -494,7 +494,7 @@ void MainWindow::onTrackIdSelected(QListWidgetItem* current, QListWidgetItem* pr
     {
         // No selection
         m_cameraSystem->setSelectedTrackId(-1);
-    }
+    }*/
 }
 
 
@@ -717,6 +717,12 @@ void MainWindow::on_trckBtn_clicked()
 
 void MainWindow::on_switchMotionModeButton_clicked()
 {
+
+    if (m_stateManager->currentMode() == OperationalMode::Engagement) {
+        qDebug() << "Cannot change motion mode during engagement.";
+        // Optionally, show a message to the user
+        return;
+    }
     // Check if the current mode is Surveillance
     if (m_stateManager->currentMode() == OperationalMode::Surveillance) {
         // Get the current motion mode
@@ -811,18 +817,36 @@ void MainWindow::on_switchMotionModeButton_clicked()
 
 void MainWindow::on_trackButton_clicked()
 {
-    QListWidgetItem* item = ui->trackIdListWidget->currentItem();
-    if (item) {
-        // Assuming the target ID is stored in the item's data (e.g., Qt::UserRole)
-        int selectedTargetID = item->data(Qt::UserRole).toInt();
+    if (m_stateManager->currentMode() == OperationalMode::Tracking) {
 
-        // Notify SurveillanceState
-        if (m_stateManager->currentMode() == OperationalMode::Surveillance) {
-            SurveillanceState* survState = dynamic_cast<SurveillanceState*>(m_stateManager->getCurrentState());
-            if (survState) {
-                //survState->onTargetSelected(selectedTargetID);
+        MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
+
+        if (currentMode == MotionModeType::TargetTracking){
+            QListWidgetItem* item = ui->trackIdListWidget->currentItem();
+            if (item) {
+                int trackId = item->data(Qt::UserRole).toInt();
+                m_cameraSystem->setSelectedTrackId(trackId);
+            }
+            else
+            {
+                // No selection
+                m_cameraSystem->setSelectedTrackId(-1);
             }
         }
+        else if (currentMode == MotionModeType::ManualTracking){
+
+            // Implement Manual Tracking Workflow
+        }
+        else
+        {
+            // Out of Tracking Mode
+        }
+
+    }
+    else
+    {
+         // Out of Tracking Mode
+
     }
 }
 

@@ -10,18 +10,14 @@ GimbalMotorDriver::GimbalMotorDriver(QObject *parent)
     m_elevationPosition(0.0)
 {
     // Connect signals from ServoDriverInterface
-    connect(m_azimuthServoDriver, &ServoDriverInterface::dataRead,
-            this, &GimbalMotorDriver::processAzimuthServoData);
+    connect(m_azimuthServoDriver, &ServoDriverInterface::dataRead, this, &GimbalMotorDriver::processAzimuthServoData);
 
-    connect(m_elevationServoDriver, &ServoDriverInterface::dataRead,
-            this, &GimbalMotorDriver::processElevationServoData);
+    connect(m_elevationServoDriver, &ServoDriverInterface::dataRead, this, &GimbalMotorDriver::processElevationServoData);
 
     // Connect log messages
-    connect(m_azimuthServoDriver, &ServoDriverInterface::logMessage,
-            this, &GimbalMotorDriver::logMessage);
+    connect(m_azimuthServoDriver, &ServoDriverInterface::logMessage, this, &GimbalMotorDriver::logMessage);
 
-    connect(m_elevationServoDriver, &ServoDriverInterface::logMessage,
-            this, &GimbalMotorDriver::logMessage);
+    connect(m_elevationServoDriver, &ServoDriverInterface::logMessage, this, &GimbalMotorDriver::logMessage);
 
     connect(m_elevationServoDriver, &ServoDriverInterface::connectionStatusChanged, this, &GimbalMotorDriver::handleElevationConnectionStatusChanged);
     connect(m_azimuthServoDriver, &ServoDriverInterface::connectionStatusChanged, this, &GimbalMotorDriver::handleAzimuthConnectionStatusChanged);

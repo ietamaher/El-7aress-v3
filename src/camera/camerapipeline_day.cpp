@@ -4,8 +4,9 @@
 #include <chrono>
 #include <iostream>
 
-CameraPipelineDay::CameraPipelineDay(int cameraIndex, QObject *parent)
+CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QObject *parent)
     : QObject(parent),
+    m_dataModel(dataModel),
     pipeline(nullptr),
     appsink(nullptr),
     source(nullptr),
@@ -439,8 +440,10 @@ GstFlowReturn CameraPipelineDay::on_new_sample(GstAppSink *sink, gpointer data)
 
 GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
-
     CameraPipelineDay *self = static_cast<CameraPipelineDay *>(user_data);
+
+
+
 
     // Increment framesSinceLastSeen for all active tracks
     for (auto &entry : self->activeTracks)
@@ -449,264 +452,369 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
     }
 
     // Retrieve batch metadata
-        NvDsBatchMeta *batch_meta = gst_buffer_get_nvds_batch_meta(GST_BUFFER(info->data));
-        if (!batch_meta)
-            return GST_PAD_PROBE_OK;
+    NvDsBatchMeta *batch_meta = gst_buffer_get_nvds_batch_meta(GST_BUFFER(info->data));
+    if (!batch_meta)
+        return GST_PAD_PROBE_OK;
 
-        // Loop through each frame in the batch
-        for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL; l_frame = l_frame->next)
+    /// Loop through each frame in the batch
+    for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL; l_frame = l_frame->next)
+    {
+        NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)(l_frame->data);
+
+        // **General Overlay Start**
+
+        // Acquire display meta for general overlay
+        NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
+        display_meta->num_labels = 0;
+        display_meta->num_lines = 0;
+
+        // Prepare text labels
+        int label_index = 0;
+
+        // Safely access data from DataModel
+
+        QString currentStateMode = self->m_dataModel->getOperationalStateMode();
+        QString currentMotionMode = self->m_dataModel->getMotionMode();
+        double lrfDistance = self->m_dataModel->getLRFDistance();
+        double azimuth, elevation;
+        self->m_dataModel->getGimbalOrientation(azimuth, elevation);
+        double gimbalSpeed = self->m_dataModel->getGimbalSpeed();
+        bool detectionEnabled = self->m_dataModel->isDetectionEnabled();
+        bool stabilizationEnabled = self->m_dataModel->isStabilizationEnabled();
+
+
+        // **State Mode Label**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_state = &display_meta->text_params[label_index++];
+        txt_params_state->display_text = g_strdup_printf("State Mode: %s", currentStateMode.toUtf8().constData());
+        txt_params_state->x_offset = 10;
+        txt_params_state->y_offset = 30;
+        txt_params_state->font_params.font_color = (NvOSD_ColorParams){1.0, 1.0, 1.0, 1.0}; // White
+        txt_params_state->font_params.font_size = 16;
+        txt_params_state->font_params.font_name = "Serif";
+        txt_params_state->set_bg_clr = 1;
+        txt_params_state->text_bg_clr = (NvOSD_ColorParams){0.0, 0.0, 0.0, 0.5}; // Semi-transparent black
+
+        // **Motion Mode Label**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_motion = &display_meta->text_params[label_index++];
+        txt_params_motion->display_text = g_strdup_printf("Motion Mode: %s", currentMotionMode.toUtf8().constData());
+        txt_params_motion->x_offset = 10;
+        txt_params_motion->y_offset = 60;
+        txt_params_motion->font_params = txt_params_state->font_params;
+        txt_params_motion->set_bg_clr = txt_params_state->set_bg_clr;
+        txt_params_motion->text_bg_clr = txt_params_state->text_bg_clr;
+
+        // **LRF Distance Label**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_lrf = &display_meta->text_params[label_index++];
+        txt_params_lrf->display_text = g_strdup_printf("LRF Distance: %.2f m", lrfDistance);
+        txt_params_lrf->x_offset = 10;
+        txt_params_lrf->y_offset = 90;
+        txt_params_lrf->font_params = txt_params_state->font_params;
+        txt_params_lrf->set_bg_clr = txt_params_state->set_bg_clr;
+        txt_params_lrf->text_bg_clr = txt_params_state->text_bg_clr;
+
+        // **Detection Status Label**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_detection = &display_meta->text_params[label_index++];
+        txt_params_detection->display_text = g_strdup_printf("Detection: %s", detectionEnabled ? "On" : "Off");
+        txt_params_detection->x_offset = 10;
+        txt_params_detection->y_offset = 150; // Adjust as needed
+        txt_params_detection->font_params = txt_params_state->font_params;
+        txt_params_detection->set_bg_clr = txt_params_state->set_bg_clr;
+        txt_params_detection->text_bg_clr = txt_params_state->text_bg_clr;
+
+        // **Stabilization Status Label**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_stab = &display_meta->text_params[label_index++];
+        txt_params_stab->display_text = g_strdup_printf("Stabilization: %s", stabilizationEnabled ? "On" : "Off");
+        txt_params_stab->x_offset = 10;
+        txt_params_stab->y_offset = 180; // Adjust as needed
+        txt_params_stab->font_params = txt_params_state->font_params;
+        txt_params_stab->set_bg_clr = txt_params_state->set_bg_clr;
+        txt_params_stab->text_bg_clr = txt_params_state->text_bg_clr;
+
+        // **Draw Crosshair**
+        int frame_width = frame_meta->source_frame_width;
+        int frame_height = frame_meta->source_frame_height;
+        int line_index = 0;
+
+        // Horizontal line
+        display_meta->num_lines++;
+        NvOSD_LineParams *line_params_h = &display_meta->line_params[line_index++];
+        line_params_h->x1 = frame_width / 2 - 20;
+        line_params_h->y1 = frame_height / 2;
+        line_params_h->x2 = frame_width / 2 + 20;
+        line_params_h->y2 = frame_height / 2;
+        line_params_h->line_width = 2;
+        line_params_h->line_color = (NvOSD_ColorParams){1.0, 1.0, 1.0, 1.0}; // White
+
+        // Vertical line
+        display_meta->num_lines++;
+        NvOSD_LineParams *line_params_v = &display_meta->line_params[line_index++];
+        line_params_v->x1 = frame_width / 2;
+        line_params_v->y1 = frame_height / 2 - 20;
+        line_params_v->x2 = frame_width / 2;
+        line_params_v->y2 = frame_height / 2 + 20;
+        line_params_v->line_width = 2;
+        line_params_v->line_color = (NvOSD_ColorParams){1.0, 1.0, 1.0, 1.0}; // White
+
+        // **Add the Display Meta to the Frame**
+        nvds_add_display_meta_to_frame(frame_meta, display_meta);
+
+        // **General Overlay End**
+
+        // Apply mode-specific display logic
+        switch (self->currentMode)
         {
-            NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)(l_frame->data);
+        case MODE_IDLE:
+        {
+            // Remove all object metadata
+            clear_obj_meta_list(frame_meta);
+            break;
+        }
+        case MODE_DETECTION:
+        {
+            // Classes to display: person(0), bicycle(1), car(2), motorcycle(3), bus(5), truck(7), boat(8)
+            QSet<int> allowed_classes = {0, 1, 2, 3, 5, 7, 8};
 
-            // Apply mode-specific display logic
-            switch (self->currentMode)
+            std::vector<NvDsObjectMeta *> objs_to_remove;
+
+            for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next)
             {
-            case MODE_IDLE:
-            {
-                // Remove all object metadata
-                clear_obj_meta_list(frame_meta);
-                break;
-            }
-            case MODE_DETECTION:
-            {
-                // Classes to display: person(0), bicycle(1), car(2), motorcycle(3), bus(5), truck(7), boat(8)
-                QSet<int> allowed_classes = {0, 1, 2, 3, 5, 7, 8};
+                NvDsObjectMeta *obj_meta = (NvDsObjectMeta *)(l_obj->data);
 
-                std::vector<NvDsObjectMeta *> objs_to_remove;
-
-                for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next)
-                {
-                    NvDsObjectMeta *obj_meta = (NvDsObjectMeta *)(l_obj->data);
-
-                    // Check if the object's class is in the allowed list
-                    //if (allowed_classes.find(obj_meta->class_id) != allowed_classes.end())
-                    //{
-                        // Set display text to class name
-                        if (obj_meta->text_params.display_text)
-                        {
-                            g_free(obj_meta->text_params.display_text);
-                        }
-                        obj_meta->text_params.display_text = g_strdup(obj_meta->obj_label);
-                    //}
-                    //else
-                    //{
-                        // Mark object meta for removal
-                       // objs_to_remove.push_back(obj_meta);
-                    //}
-                }
-
-                // Remove unwanted object metadata
-                for (NvDsObjectMeta *obj_meta : objs_to_remove)
-                {
-                    nvds_remove_obj_meta_from_frame(frame_meta, obj_meta);
-                }
-                break;
-            }
-            case MODE_TRACKING:
-            {
-                QSet<int> allowed_classes = {0, 1, 2, 3, 5, 7, 8};
-                QSet<int> currentFrameTrackIds;
-                QSet<int> trackIds;
-                std::vector<NvDsObjectMeta *> objs_to_remove;
-                int selectedTrackId = self->getSelectedTrackId();
-
-                for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next)
-                {
-                    NvDsObjectMeta *obj_meta = (NvDsObjectMeta *)(l_obj->data);
-
-                    // Check if the object's class is in the allowed list
-                    //if (allowed_classes.find(obj_meta->class_id) != allowed_classes.end())
-                    //{
-                        // Collect track IDs
-                        int trackId = obj_meta->object_id;
-                        currentFrameTrackIds.insert(trackId);
-
-                        // Update or add track info
-                        self->activeTracks[trackId] = {trackId, 0};
-
-                        // Set display text to include class name and track ID
-                        if (obj_meta->text_params.display_text)
-                        {
-                            g_free(obj_meta->text_params.display_text);
-                        }
-                        obj_meta->text_params.display_text = g_strdup_printf("%s ID:%lu", obj_meta->obj_label, obj_meta->object_id);
-
-                        // Highlight selected object
-                        if (self->selectedTrackId == obj_meta->object_id)
-                        {
-                            // Change bounding box color and border width
-                            obj_meta->rect_params.border_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Red
-                            obj_meta->rect_params.border_width = 2;
-
-                            // Draw line from center to object's center
-                            NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
-                            display_meta->num_lines = 1;
-                            display_meta->line_params[0].x1 = frame_meta->source_frame_width / 2;
-                            display_meta->line_params[0].y1 = frame_meta->source_frame_height / 2;
-                            display_meta->line_params[0].x2 = obj_meta->rect_params.left + obj_meta->rect_params.width / 2;
-                            display_meta->line_params[0].y2 = obj_meta->rect_params.top + obj_meta->rect_params.height / 2;
-                            display_meta->line_params[0].line_width = 1;
-                            display_meta->line_params[0].line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
-                            nvds_add_display_meta_to_frame(frame_meta, display_meta);
-                        }
-                        std::vector<int> tracksToRemove;
-                        for (const auto &entry : self->activeTracks)
-                        {
-                            if (entry.second.framesSinceLastSeen > self->maxFramesToKeep)
-                            {
-                                tracksToRemove.push_back(entry.first);
-                            }
-                        }
-                        for (int trackId : tracksToRemove)
-                        {
-                            if (trackId == self->selectedTrackId)
-                            {
-                                // Reset the selectedTrackId
-                                self->selectedTrackId = -1;
-                                // Emit signal to notify GUI
-                                emit self->selectedTrackLost(trackId);
-                            }
-                            self->activeTracks.erase(trackId);                        }
-
-                        // Prepare the list of trackIds to emit
-                        QSet<int> trackIds;
-                        for (const auto &entry : self->activeTracks)
-                        {
-                            trackIds.insert(entry.first);
-                        }
-
-                        // Compare with previousTrackIds and emit if changed
-                        if (trackIds  != self->previousTrackIds)
-                        {
-                            self->previousTrackIds = trackIds;
-                            emit self->trackedTargetsUpdated(trackIds);
-                        }
-                    //}
-                    //else
-                    //{
-                        // Mark object meta for removal
-                    //    objs_to_remove.push_back(obj_meta);
-                    //}
-                }
-
-
-
-                break;
-            }
-            case MODE_MANUAL_TRACKING:
-            {
-                // Remove all detection/tracking metadata
-               //clear_obj_meta_list(frame_meta);
-
-                // Add manual tracking bounding box if enabled
-                //if (self->manualTrackingEnabled)
+                // Check if the object's class is in the allowed list
+                //if (allowed_classes.find(obj_meta->class_id) != allowed_classes.end())
                 //{
-                NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
-                NvDsObjectMeta *obj_meta = nvds_acquire_obj_meta_from_pool(batch_meta);
-
-                obj_meta->unique_component_id = 1; // Define your component ID
-                obj_meta->confidence = 1.0;
-
-                // Initialize text parameters for displaying speed
-                display_meta->num_labels = 1;
-                NvOSD_TextParams *txt_params4 = &display_meta->text_params[3];
-                txt_params4->display_text = static_cast<char*>(g_malloc0(10));
-                snprintf(txt_params4->display_text, 10, "SPEED:%d", static_cast<int>(23.6));
-                txt_params4->x_offset = 100;
-                txt_params4->y_offset = 210;
-
-                // Initialize rectangle parameters
-                /*display_meta->num_rects = 1;
-                NvOSD_RectParams *bboxRect = &display_meta->rect_params[0];
-                if (self->updatedBBox.height() != 0)
-                {
-                    bboxRect->height = self->updatedBBox.height();
-                    bboxRect->width = self->updatedBBox.width();
-                    bboxRect->left = self->updatedBBox.x();
-                    bboxRect->top = self->updatedBBox.y();
-                    bboxRect->border_width = 2;
-                    bboxRect->border_color = (NvOSD_ColorParams){1.0, 0.0, 0.0, 1.0};
-                }*/
-
-                // Optionally set display text
-                if (obj_meta->text_params.display_text)
-                {
-                    g_free(obj_meta->text_params.display_text);
-                }
-                obj_meta->text_params.display_text = g_strdup("Manual Target");
-
-                // **Add Bracket and Arrow Lines**
-                // Define the number of additional lines needed
-                // For two brackets: 4 lines (2 on each side)
-                // For one arrow: 2 lines (shaft and head)
-                int additionalLines = 6; // Adjust as needed
-                display_meta->num_lines += additionalLines;
-
-                // Define bracket parameters
-                // Left Bracket
-                NvOSD_LineParams *leftBracketTop = &display_meta->line_params[display_meta->num_lines - additionalLines];
-                NvOSD_LineParams *leftBracketBottom = &display_meta->line_params[display_meta->num_lines - additionalLines + 1];
-
-                // Right Bracket
-                NvOSD_LineParams *rightBracketTop = &display_meta->line_params[display_meta->num_lines - additionalLines + 2];
-                NvOSD_LineParams *rightBracketBottom = &display_meta->line_params[display_meta->num_lines - additionalLines + 3];
-
-                // Define arrow parameters
-                NvOSD_LineParams *arrowShaft = &display_meta->line_params[display_meta->num_lines - additionalLines + 4];
-                NvOSD_LineParams *arrowHead1 = &display_meta->line_params[display_meta->num_lines - additionalLines + 5];
-                NvOSD_LineParams *arrowHead2 = &display_meta->line_params[display_meta->num_lines - additionalLines + 6];
-
-                // Calculate bounding box coordinates
-                float left = static_cast<float>(self->updatedBBox.x());
-                float top = static_cast<float>(self->updatedBBox.y());
-                float right = left + static_cast<float>(self->updatedBBox.width());
-                float bottom = top + static_cast<float>(self->updatedBBox.height());
-                float centerX = left + (self->updatedBBox.width() / 2.0f);
-                float centerY = top + (self->updatedBBox.height() / 2.0f);
-
-                // **Configure Left Bracket Lines**
-                leftBracketTop->x1 = left;
-                leftBracketTop->y1 = top;
-                leftBracketTop->x2 = left + 20; // Horizontal line length
-                leftBracketTop->y2 = top;
-                leftBracketTop->line_width = 2;
-                leftBracketTop->line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
-
-                leftBracketBottom->x1 = left;
-                leftBracketBottom->y1 = bottom;
-                leftBracketBottom->x2 = left + 20;
-                leftBracketBottom->y2 = bottom;
-                leftBracketBottom->line_width = 2;
-                leftBracketBottom->line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
-
-                // **Configure Right Bracket Lines**
-                rightBracketTop->x1 = right;
-                rightBracketTop->y1 = top;
-                rightBracketTop->x2 = right - 20; // Horizontal line length
-                rightBracketTop->y2 = top;
-                rightBracketTop->line_width = 2;
-                rightBracketTop->line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
-
-                rightBracketBottom->x1 = right;
-                rightBracketBottom->y1 = bottom;
-                rightBracketBottom->x2 = right - 20;
-                rightBracketBottom->y2 = bottom;
-                rightBracketBottom->line_width = 2;
-                rightBracketBottom->line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
-
-                // **Configure Arrow Lines**
-                // Arrow Shaft
-
-
-                // **Add Object Meta to Frame**
-                nvds_add_obj_meta_to_frame(frame_meta, obj_meta, NULL);
+                    // Set display text to class name
+                    if (obj_meta->text_params.display_text)
+                    {
+                        g_free(obj_meta->text_params.display_text);
+                    }
+                    obj_meta->text_params.display_text = g_strdup(obj_meta->obj_label);
                 //}
-                break;
+                //else
+                //{
+                    // Mark object meta for removal
+                   // objs_to_remove.push_back(obj_meta);
+                //}
             }
-            default:
-                break;
-            } // End of switch-case
-        } // End of frame loop
+
+            // Remove unwanted object metadata
+            for (NvDsObjectMeta *obj_meta : objs_to_remove)
+            {
+                nvds_remove_obj_meta_from_frame(frame_meta, obj_meta);
+            }
+            break;
+        }
+        case MODE_TRACKING:
+        {
+            QSet<int> allowed_classes = {0, 1, 2, 3, 5, 7, 8};
+            QSet<int> currentFrameTrackIds;
+            QSet<int> trackIds;
+            std::vector<NvDsObjectMeta *> objs_to_remove;
+            int selectedTrackId = self->getSelectedTrackId();
+
+            for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next)
+            {
+                NvDsObjectMeta *obj_meta = (NvDsObjectMeta *)(l_obj->data);
+
+                // Check if the object's class is in the allowed list
+                //if (allowed_classes.find(obj_meta->class_id) != allowed_classes.end())
+                //{
+                    // Collect track IDs
+                    int trackId = obj_meta->object_id;
+                    currentFrameTrackIds.insert(trackId);
+
+                    // Update or add track info
+                    self->activeTracks[trackId] = {trackId, 0};
+
+                    // Set display text to include class name and track ID
+                    if (obj_meta->text_params.display_text)
+                    {
+                        g_free(obj_meta->text_params.display_text);
+                    }
+                    obj_meta->text_params.display_text = g_strdup_printf("%s ID:%lu", obj_meta->obj_label, obj_meta->object_id);
+
+                    // Highlight selected object
+                    if (self->selectedTrackId == obj_meta->object_id)
+                    {
+                        // Change bounding box color and border width
+                        obj_meta->rect_params.border_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Red
+                        obj_meta->rect_params.border_width = 2;
+
+                        // Draw line from center to object's center
+                        NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
+                        display_meta->num_lines = 1;
+                        display_meta->line_params[0].x1 = frame_meta->source_frame_width / 2;
+                        display_meta->line_params[0].y1 = frame_meta->source_frame_height / 2;
+                        display_meta->line_params[0].x2 = obj_meta->rect_params.left + obj_meta->rect_params.width / 2;
+                        display_meta->line_params[0].y2 = obj_meta->rect_params.top + obj_meta->rect_params.height / 2;
+                        display_meta->line_params[0].line_width = 1;
+                        display_meta->line_params[0].line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
+                        nvds_add_display_meta_to_frame(frame_meta, display_meta);
+                    }
+                    std::vector<int> tracksToRemove;
+                    for (const auto &entry : self->activeTracks)
+                    {
+                        if (entry.second.framesSinceLastSeen > self->maxFramesToKeep)
+                        {
+                            tracksToRemove.push_back(entry.first);
+                        }
+                    }
+                    for (int trackId : tracksToRemove)
+                    {
+                        if (trackId == self->selectedTrackId)
+                        {
+                            // Reset the selectedTrackId
+                            self->selectedTrackId = -1;
+                            // Emit signal to notify GUI
+                            emit self->selectedTrackLost(trackId);
+                        }
+                        self->activeTracks.erase(trackId);                        }
+
+                    // Prepare the list of trackIds to emit
+                    QSet<int> trackIds;
+                    for (const auto &entry : self->activeTracks)
+                    {
+                        trackIds.insert(entry.first);
+                    }
+
+                    // Compare with previousTrackIds and emit if changed
+                    if (trackIds  != self->previousTrackIds)
+                    {
+                        self->previousTrackIds = trackIds;
+                        emit self->trackedTargetsUpdated(trackIds);
+                    }
+                //}
+                //else
+                //{
+                    // Mark object meta for removal
+                //    objs_to_remove.push_back(obj_meta);
+                //}
+            }
+
+
+
+            break;
+        }
+        case MODE_MANUAL_TRACKING:
+        {
+            // Remove all detection/tracking metadata
+           //clear_obj_meta_list(frame_meta);
+
+            // Add manual tracking bounding box if enabled
+            //if (self->manualTrackingEnabled)
+            //{
+            NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
+            NvDsObjectMeta *obj_meta = nvds_acquire_obj_meta_from_pool(batch_meta);
+
+            obj_meta->unique_component_id = 1; // Define your component ID
+            obj_meta->confidence = 1.0;
+
+            // Initialize text parameters for displaying speed
+            display_meta->num_labels = 1;
+            NvOSD_TextParams *txt_params4 = &display_meta->text_params[3];
+            txt_params4->display_text = static_cast<char*>(g_malloc0(10));
+            snprintf(txt_params4->display_text, 10, "SPEED:%d", static_cast<int>(23.6));
+            txt_params4->x_offset = 100;
+            txt_params4->y_offset = 210;
+
+            // Initialize rectangle parameters
+            /*display_meta->num_rects = 1;
+            NvOSD_RectParams *bboxRect = &display_meta->rect_params[0];
+            if (self->updatedBBox.height() != 0)
+            {
+                bboxRect->height = self->updatedBBox.height();
+                bboxRect->width = self->updatedBBox.width();
+                bboxRect->left = self->updatedBBox.x();
+                bboxRect->top = self->updatedBBox.y();
+                bboxRect->border_width = 2;
+                bboxRect->border_color = (NvOSD_ColorParams){1.0, 0.0, 0.0, 1.0};
+            }*/
+
+            // Optionally set display text
+            if (obj_meta->text_params.display_text)
+            {
+                g_free(obj_meta->text_params.display_text);
+            }
+            obj_meta->text_params.display_text = g_strdup("Manual Target");
+
+            // **Add Bracket and Arrow Lines**
+            // Define the number of additional lines needed
+            // For two brackets: 4 lines (2 on each side)
+            // For one arrow: 2 lines (shaft and head)
+            int additionalLines = 6; // Adjust as needed
+            display_meta->num_lines += additionalLines;
+
+            // Define bracket parameters
+            // Left Bracket
+            NvOSD_LineParams *leftBracketTop = &display_meta->line_params[display_meta->num_lines - additionalLines];
+            NvOSD_LineParams *leftBracketBottom = &display_meta->line_params[display_meta->num_lines - additionalLines + 1];
+
+            // Right Bracket
+            NvOSD_LineParams *rightBracketTop = &display_meta->line_params[display_meta->num_lines - additionalLines + 2];
+            NvOSD_LineParams *rightBracketBottom = &display_meta->line_params[display_meta->num_lines - additionalLines + 3];
+
+            // Define arrow parameters
+            NvOSD_LineParams *arrowShaft = &display_meta->line_params[display_meta->num_lines - additionalLines + 4];
+            NvOSD_LineParams *arrowHead1 = &display_meta->line_params[display_meta->num_lines - additionalLines + 5];
+            NvOSD_LineParams *arrowHead2 = &display_meta->line_params[display_meta->num_lines - additionalLines + 6];
+
+            // Calculate bounding box coordinates
+            float left = static_cast<float>(self->updatedBBox.x());
+            float top = static_cast<float>(self->updatedBBox.y());
+            float right = left + static_cast<float>(self->updatedBBox.width());
+            float bottom = top + static_cast<float>(self->updatedBBox.height());
+            float centerX = left + (self->updatedBBox.width() / 2.0f);
+            float centerY = top + (self->updatedBBox.height() / 2.0f);
+
+            // **Configure Left Bracket Lines**
+            leftBracketTop->x1 = left;
+            leftBracketTop->y1 = top;
+            leftBracketTop->x2 = left + 20; // Horizontal line length
+            leftBracketTop->y2 = top;
+            leftBracketTop->line_width = 2;
+            leftBracketTop->line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
+
+            leftBracketBottom->x1 = left;
+            leftBracketBottom->y1 = bottom;
+            leftBracketBottom->x2 = left + 20;
+            leftBracketBottom->y2 = bottom;
+            leftBracketBottom->line_width = 2;
+            leftBracketBottom->line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
+
+            // **Configure Right Bracket Lines**
+            rightBracketTop->x1 = right;
+            rightBracketTop->y1 = top;
+            rightBracketTop->x2 = right - 20; // Horizontal line length
+            rightBracketTop->y2 = top;
+            rightBracketTop->line_width = 2;
+            rightBracketTop->line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
+
+            rightBracketBottom->x1 = right;
+            rightBracketBottom->y1 = bottom;
+            rightBracketBottom->x2 = right - 20;
+            rightBracketBottom->y2 = bottom;
+            rightBracketBottom->line_width = 2;
+            rightBracketBottom->line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
+
+            // **Configure Arrow Lines**
+            // Arrow Shaft
+
+
+            // **Add Object Meta to Frame**
+            nvds_add_obj_meta_to_frame(frame_meta, obj_meta, NULL);
+            //}
+            break;
+        }
+        default:
+            break;
+        } // End of switch-case
+    } // End of frame loop
+
 
     return GST_PAD_PROBE_OK;
 }

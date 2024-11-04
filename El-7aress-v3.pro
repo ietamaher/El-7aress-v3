@@ -87,7 +87,7 @@ SOURCES += \
     $$PWD/src/comm/modbusinterface.cpp \
     $$PWD/src/gimbal/radartrackingmotionmode.cpp \
     $$PWD/src/gimbal/gimbalcontroller.cpp \
-    $$PWD/src/gimbal/gimbalmotordriver.cpp \
+    #$$PWD/src/gimbal/gimbalmotordriver.cpp \
     $$PWD/src/gimbal/patternmotionmode.cpp \
     $$PWD/src/gimbal/manualmotionmode.cpp \
     $$PWD/src/gimbal/gyrostabilizationmotionmode.cpp \
@@ -96,6 +96,7 @@ SOURCES += \
     $$PWD/src/gimbal/servodriverinterface.cpp \
     $$PWD/src/gimbal/plcservointerface.cpp \
     $$PWD/src/main.cpp \
+    $$PWD/src/datamodel.cpp \
     $$PWD/src/gui/mainwindow.cpp \
     $$PWD/src/gui/videoglwidget_gl.cpp \
     $$PWD/src/sensor/sensorsystem.cpp \
@@ -130,7 +131,7 @@ HEADERS += \
     $$PWD/include/states/engagementstate.h \
     $$PWD/include/gimbal/gimbalcontroller.h \
     $$PWD/include/gimbal/gimbalmotionmode.h \
-    $$PWD/include/gimbal/gimbalmotordriver.h \
+    #$$PWD/include/gimbal/gimbalmotordriver.h \
     #$$PWD/include/gimbal/mduinocontroller.h \
     $$PWD/include/gimbal/servodriverinterface.h \
     $$PWD/include/gimbal/radartrackingmotionmode.h \
@@ -161,7 +162,9 @@ HEADERS += \
     $$PWD/include/weapon/servoactuatorinterface.h \
     $$PWD/include/weapon/plcsolenoidinterface.h\
     $$PWD/include/gui/statuspanel.h \
-    include/gimbal/motionmodetype.h
+    $$PWD/include/gimbal/motionmodetype.h\
+    $$PWD/include/datamodel.h
+
 
 
 FORMS += \

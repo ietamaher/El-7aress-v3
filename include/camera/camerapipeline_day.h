@@ -36,6 +36,8 @@
 #include <QMetaType>
 #include <set>
 
+#include "include/datamodel.h"
+
 // Declare std::set<int> as a metatype
 Q_DECLARE_METATYPE(std::set<int>)
 
@@ -72,7 +74,9 @@ class CameraPipelineDay : public QObject
 {
     Q_OBJECT
 public:
-    explicit CameraPipelineDay(int cameraIndex, QObject *parent = nullptr);
+    //explicit CameraPipelineDay(int cameraIndex, QObject *parent = nullptr);
+    explicit CameraPipelineDay(DataModel *dataModel, QObject *parent = nullptr);
+
     ~CameraPipelineDay();
 
     void start();
@@ -151,6 +155,9 @@ private:
     bool is_object_initialized = false;
     bool is_metadata_injected = false;
     int tracker_frames = 0;
+
+    DataModel *m_dataModel;
+
 };
 
 #endif // CAMERA_PIPELINE_DAY_H

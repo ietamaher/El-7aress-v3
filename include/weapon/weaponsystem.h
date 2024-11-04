@@ -4,11 +4,12 @@
 #include <QObject>
 #include "servoactuatorinterface.h"
 #include "plcsolenoidinterface.h"
+#include "include/datamodel.h"
 
 class WeaponSystem : public QObject {
     Q_OBJECT
 public:
-    explicit WeaponSystem(QObject *parent = nullptr);
+    explicit WeaponSystem(DataModel *dataModel, QObject *parent = nullptr);
     ~WeaponSystem();
 
     void arm(bool arm);
@@ -36,6 +37,8 @@ signals:
 private:
     bool m_armed;
     bool m_prepared;
+    DataModel *m_dataModel;
+
     ServoActuatorInterface *m_servoActuatorInterface;
     PLCSolenoidInterface *m_plcSolenoidInterface;
 

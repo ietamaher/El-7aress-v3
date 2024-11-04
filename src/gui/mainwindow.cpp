@@ -11,8 +11,10 @@
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
+    m_dataModel(new DataModel(this)),
+    m_stateManager(new StateManager(m_dataModel, this)) ,
     ui(new Ui::MainWindow),
-m_manualGimbalControlEnabled(false)
+    m_manualGimbalControlEnabled(false)
 {
     ui->setupUi(this);
     initializeComponents();
@@ -75,7 +77,7 @@ MainWindow::~MainWindow() {
 void MainWindow::initializeComponents() {
 
     // Create system instances
-    m_stateManager = new   StateManager(this);
+    //m_stateManager = new   StateManager(this);
 
     // Get subsystem instances from StateManager
     m_cameraSystem = m_stateManager->getCameraSystem();
@@ -197,19 +199,7 @@ void MainWindow::connectSignals() {
      connect(m_gimbalController, &GimbalController::azimuthConnectionStatusChanged, this, &MainWindow::onAZStepperMotorStatusChanged);
      connect(m_gimbalController, &GimbalController::elevationConnectionStatusChanged, this, &MainWindow::onELStepperMotorStatusChanged);
      connect(m_weaponSystem, &WeaponSystem::actuatorStatusChanged, this, &MainWindow::onActuatorStatusChanged);
-
-    // connect(ui->switchMotionModeButton, &QPushButton::clicked,
-      //       this, &MainWindow::on_switchMotionModeButton_clicked);
-
-     /*connect(m_stateManager, &StateManager::modeChanged,
-             this, [&](OperationalMode mode) {
-                 if (mode == OperationalMode::Surveillance) {
-                     ui->switchMotionModeButton->setEnabled(true);
-                 }
-                 else {
-                     ui->switchMotionModeButton->setEnabled(false);
-                 }
-             });*/
+ 
 }
 
 void MainWindow::startThread() {
@@ -567,7 +557,7 @@ void MainWindow::onRangingDataReceived(quint8 status, quint16 distance, quint8 d
     qDebug() << "Status:" << status;
     qDebug() << "Distance:" << distance << "." << decimalPlaces << "cm";
     qDebug() << "Echo Status:" << echoStatus;
-
+    double lrfdistance = m_dataModel->getLRFDistance();
     // Convert distance to meters with decimal places
     double distanceMeters = distance / 100.0 + decimalPlaces / 10000.0;
     ui->lblDistance->setText(QString::number(distanceMeters, 'f', 2) + " m");
@@ -660,6 +650,8 @@ void MainWindow::on_survBtn_clicked()
     }
 
     ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+    m_dataModel->setMotionMode(modeName);
+
 }
 
 void MainWindow::on_engageBtn_clicked()
@@ -682,6 +674,7 @@ void MainWindow::on_engageBtn_clicked()
         break;
     }
     ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+    m_dataModel->setMotionMode(modeName);
 
 
 }
@@ -766,6 +759,8 @@ void MainWindow::on_switchMotionModeButton_clicked()
         }
 
          ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+        m_dataModel->setMotionMode(modeName);
+
 
     } else if(m_stateManager->currentMode() == OperationalMode::Tracking) {
         // Get the current motion mode
@@ -803,6 +798,7 @@ void MainWindow::on_switchMotionModeButton_clicked()
         }
 
         ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+        m_dataModel->setMotionMode(modeName);
 
 
     }
@@ -811,6 +807,7 @@ void MainWindow::on_switchMotionModeButton_clicked()
         QMessageBox::warning(this, "Invalid Operation",
                              "Motion mode can only be changed in Surveillance mode.");
     }
+
 }
 
 
@@ -881,44 +878,56 @@ void MainWindow::on_cancelTrackingButton_clicked()
 
 void MainWindow::on_detectionToggleButton_clicked()
 {
-
     if (m_stateManager->currentMode() == OperationalMode::Surveillance) {
         CameraSystem::ProcessMode processMode = m_stateManager->getCameraSystem()->getProcessingMode();
         CameraSystem::ProcessMode nextProcessMode;
 
-        // Determine the next motion mode
+        // Determine the next process mode
         switch (processMode) {
         case CameraSystem::ProcessMode::IdleMode:
             nextProcessMode = CameraSystem::ProcessMode::DetectionMode;
-            detectionEnabled = true;
+            m_detectionEnabled = true;
             break;
         case CameraSystem::ProcessMode::DetectionMode:
             nextProcessMode = CameraSystem::ProcessMode::IdleMode;
-            detectionEnabled = false;
+            m_detectionEnabled = false;
             break;
         default:
             nextProcessMode = CameraSystem::ProcessMode::IdleMode;
-            detectionEnabled = false;
-
+            m_detectionEnabled = false;
             break;
         }
+
+        // Update the SurveillanceState
         SurveillanceState* survState = dynamic_cast<SurveillanceState*>(m_stateManager->getCurrentState());
         if (survState) {
-            survState->setDetectionEnabled(detectionEnabled);
+            survState->setDetectionEnabled(m_detectionEnabled);
         }
+
+        // **Update DataModel**
+        m_dataModel->setDetectionEnabled(m_detectionEnabled);
+
+        // Optionally, update UI elements or indicators
     }
 }
-
 
 void MainWindow::on_stabToggleButton_clicked()
 {
-
     if (m_stateManager->currentMode() == OperationalMode::Surveillance ||
         m_stateManager->currentMode() == OperationalMode::Tracking) {
-        // STAB can be toggled in Surveillance and Tracking modes
+
+        // **Toggle the stabilization state**
+        m_stabilizationEnabled = !m_stabilizationEnabled;
+
         if (m_stateManager->getGimbalController()) {
-            m_stateManager->getGimbalController()->setStabilizationEnabled(stabilizationEnabled);
+            m_stateManager->getGimbalController()->setStabilizationEnabled(m_stabilizationEnabled);
         }
+
+        // **Update DataModel**
+        m_dataModel->setStabilizationEnabled(m_stabilizationEnabled);
+
+        // Optionally, update UI elements or indicators
     }
 }
+
 

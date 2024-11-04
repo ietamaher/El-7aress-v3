@@ -1,8 +1,9 @@
 #include "include/weapon/weaponsystem.h"
 #include <QDebug>
 
-WeaponSystem::WeaponSystem(QObject *parent)
+WeaponSystem::WeaponSystem(DataModel *dataModel, QObject *parent)
     : QObject(parent),
+      m_dataModel(dataModel),
       m_armed(true),
       m_prepared(false),
       m_servoActuatorInterface(new ServoActuatorInterface(this)),

@@ -34,5 +34,5 @@ void RadarTrackingMotionMode::onRadarTargetUpdated(const RadarTarget &target) {
 
 void RadarTrackingMotionMode::update(GimbalController* controller) {
     // Use m_targetAzimuth and m_targetElevation to command the gimbal
-    controller->getGimbalMotorDriver()->sendPositionCommand(m_targetAzimuth, m_targetElevation);
+    controller->sendPositionCommand(m_targetAzimuth, m_targetElevation);
 }

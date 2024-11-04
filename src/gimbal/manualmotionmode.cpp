@@ -13,8 +13,8 @@ ManualMotionMode::ManualMotionMode(QObject *parent)
 void ManualMotionMode::enter(GimbalController* controller) {
     qDebug() << "Entering Manual Motion Mode";
     // Initialize positions
-    m_azimuth = controller->getGimbalMotorDriver()->getAzimuthPosition();
-    m_elevation = controller->getGimbalMotorDriver()->getElevationPosition();
+    m_azimuth = controller->getAzimuthPosition();
+    m_elevation = controller->getElevationPosition();
 }
 
 void ManualMotionMode::exit(GimbalController* controller) {
@@ -48,5 +48,5 @@ void ManualMotionMode::update(GimbalController* controller) {
     }
 
     // Send position command
-    controller->getGimbalMotorDriver()->sendPositionCommand(targetAzimuth, targetElevation);
+    controller->sendPositionCommand(targetAzimuth, targetElevation);
 }

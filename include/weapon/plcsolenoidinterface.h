@@ -5,6 +5,7 @@
 #include <QTimer>
 #include <QSet>
 #include "include/comm/plcmodbusworker.h"
+#include "include/datamodel.h"
 
 class PLCSolenoidInterface : public QObject {
     Q_OBJECT

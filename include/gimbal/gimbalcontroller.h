@@ -7,13 +7,13 @@
 #include "motionmodetype.h"
 
 
-#include "gimbalmotordriver.h"
+//#include "gimbalmotordriver.h"
 #include "mduinocontroller.h"
 #include "../sensor/sensorsystem.h"
 #include "../camera/camerasystem.h"
 #include "plcservointerface.h"
-
-
+#include "servodriverinterface.h"
+#include "include/datamodel.h"
 
 //#include "include/comm/joystickhandler.h"
 
@@ -25,7 +25,7 @@
 class GimbalController : public QObject {
     Q_OBJECT
 public:
-    explicit GimbalController(QObject *parent = nullptr);
+    explicit GimbalController(DataModel *dataModel, QObject *parent = nullptr);
     ~GimbalController();
 
 
@@ -35,7 +35,7 @@ public:
     void setMotionMode(MotionModeType modeType); // Change parameter type
     MotionModeType getCurrentMotionMode() const; // Add getter
     // Accessors
-    GimbalMotorDriver* getGimbalMotorDriver() const;
+    //GimbalMotorDriver* getGimbalMotorDriver() const;
     SensorSystem* getSensorSystem() const;
     void setSensorSystem(SensorSystem* sensorSystem);
     CameraSystem* getCameraSystem() const;
@@ -57,13 +57,23 @@ public:
 
     void setStabilizationEnabled(bool enabled);
     bool isStabilizationEnabled() const;
+    // Initialization
+    bool initialize();
+
+    // Command methods
+    void sendPositionCommand(double azimuth, double elevation);
+    void sendSpeedCommand(double azimuthSpeed, double elevationSpeed);
+
+    // Accessors for current positions
+    double getAzimuthPosition() const;
+    double getElevationPosition() const;
 
 
 public slots:
     //void onAxisMoved(int axis, float normalizedValue);
     void onModeChanged(OperationalMode mode);
-    void onAzimuthDataUpdated(double position, double speed, double torque, double motorTemp, double driverTemp);
-    void onElevationDataUpdated(double position, double speed, double torque, double motorTemp, double driverTemp);
+    void onAzimuthDataUpdated(const QVector<uint16_t> &data);
+    void onElevationDataUpdated(const QVector<uint16_t> &data);
 
     void handleAzimuthConnectionStatusChanged(bool connected);
     void handleElevationConnectionStatusChanged(bool connected);
@@ -74,7 +84,11 @@ signals:
     void azimuthConnectionStatusChanged(bool connected);
     void elevationConnectionStatusChanged(bool connected);
     void motionModeChangeRequested(MotionModeType modeType);
-private slots :
+
+    void stepperMotorStatusChanged(const QString &motorName, bool connected);
+    void azimuthDataUpdated(const QVector<uint16_t> &data);
+    void elevationDataUpdated(const QVector<uint16_t> &data);
+    void logMessage(const QString &message);
 
 
 private:
@@ -84,17 +98,22 @@ private:
     std::unique_ptr<GimbalMotionMode> m_currentMotionMode; // Use smart pointer
 
    // GimbalMotionMode* m_currentMotionMode;
-    GimbalMotorDriver* m_gimbalMotorDriver;
+    //GimbalMotorDriver* m_gimbalMotorDriver;
     SensorSystem* m_sensorSystem;
     CameraSystem* m_cameraSystem;
     PLCServoInterface* m_plcServoInterface;
     //JoystickHandler *m_joystickHandler;
     MotionModeType m_currentMotionModeType;
     bool m_stabilizationEnabled;
+    ServoDriverInterface *m_azimuthServoDriver;
+    ServoDriverInterface *m_elevationServoDriver;
 
+    double m_azimuthPosition;
+    double m_elevationPosition;
      // Current positions
     double m_azimuth;
     double m_elevation;
+    DataModel *m_dataModel;
 
     // Feedback update method
     void readFeedback();

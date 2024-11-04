@@ -66,5 +66,5 @@ void PatternMotionMode::executePattern(GimbalController* controller) {
     double targetElevation = 0.0;
 
     // Send position command
-    controller->getGimbalMotorDriver()->sendPositionCommand(m_currentAzimuth, targetElevation);
+    controller->sendPositionCommand(m_currentAzimuth, targetElevation);
 }

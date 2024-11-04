@@ -9,7 +9,6 @@
 #include <QThread>
 
 
-
 class GyroInterface : public QObject {
         Q_OBJECT
 public:

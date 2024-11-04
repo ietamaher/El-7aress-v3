@@ -11,11 +11,14 @@
 
 //#include "include/camera/camerapipeline_night.h"
 #include "include/camera/lensinterface.h"
+#include "include/datamodel.h"
+
+
 
 class CameraSystem : public QObject {
     Q_OBJECT
 public:
-    explicit CameraSystem(QObject *parent = nullptr);
+    explicit CameraSystem(DataModel *dataModel, QObject *parent = nullptr);
     ~CameraSystem();
 
     enum ProcessMode {
@@ -84,6 +87,7 @@ private:
     void initializeCameraInterfaces();
     void onTrackIdSelected(int index);
     void processFrame();
+    DataModel *m_dataModel;
 
     CameraPipelineDay *m_cameraPipelineDay;
     //CameraPipelineNight *m_cameraPipelineNight;

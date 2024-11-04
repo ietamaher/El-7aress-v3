@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QSerialPort>
 #include <QTimer>
+#include "include/datamodel.h"
 
 class ServoActuatorInterface : public QObject {
     Q_OBJECT

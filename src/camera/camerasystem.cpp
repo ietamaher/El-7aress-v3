@@ -1,8 +1,9 @@
 #include "include/camera/camerasystem.h"
 #include "QDebug"
 
-CameraSystem::CameraSystem(QObject *parent)
+CameraSystem::CameraSystem(DataModel *dataModel, QObject *parent)
     : QObject(parent),
+    m_dataModel(dataModel),
     m_cameraPipelineDay(nullptr),
     //m_cameraPipelineNight(nullptr),
     m_displayWidget(nullptr),
@@ -30,7 +31,7 @@ CameraSystem::~CameraSystem() {
 void CameraSystem::initializePipelines() {
     // Initialize camera pipelines based on active camera
     if (m_isDayCameraActive) {
-        m_cameraPipelineDay = new CameraPipelineDay(0, this);
+        m_cameraPipelineDay = new CameraPipelineDay(m_dataModel, this);
         connect(m_cameraPipelineDay, &CameraPipelineDay::newFrameAvailable, this, &CameraSystem::onNewFrameAvailable);
         connect(m_cameraPipelineDay, &CameraPipelineDay::trackedTargetsUpdated, this, &CameraSystem::onTrackedIdsUpdated, Qt::QueuedConnection);
         connect(m_cameraPipelineDay, &CameraPipelineDay::selectedTrackLost, this, &CameraSystem::onSelectedTrackLost);

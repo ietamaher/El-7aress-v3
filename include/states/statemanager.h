@@ -14,6 +14,7 @@
 #include "include/states/engagementstate.h"
 #include "include/states/emergencyoverridestate.h"
 #include "include/states/systemerrorstate.h"
+#include "include/datamodel.h"
 
 class OperationalState;
 class GimbalController;
@@ -24,7 +25,7 @@ class SensorSystem;
 class StateManager : public QObject {
     Q_OBJECT
 public:
-    explicit StateManager(QObject *parent = nullptr);
+    explicit StateManager(DataModel *dataModel, QObject *parent = nullptr);
     ~StateManager();
 
     OperationalMode currentMode() const;
@@ -58,8 +59,10 @@ signals:
 
 private:
     OperationalState* createState(OperationalMode mode, bool isManualTracking = false);
+    QString operationalModeToString(OperationalMode mode);
 
     std::unique_ptr<OperationalState> m_currentState;
+    DataModel *m_dataModel;
 
     GimbalController* m_gimbalController;
     CameraSystem* m_cameraSystem;

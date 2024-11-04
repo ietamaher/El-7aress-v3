@@ -8,6 +8,7 @@
 #include <QByteArray>
 #include <QThread>
 #include <QMap>
+#include "include/datamodel.h"
 
 struct RadarTarget {
     int id;

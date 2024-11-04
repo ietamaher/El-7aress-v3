@@ -59,7 +59,7 @@ void GyroStabilizationMotionMode::update(GimbalController* controller) {
         compensationElevation = compensationElevation * (180.0 / M_PI);
 
         // Send motion command to GimbalMotorDriver
-         controller->getGimbalMotorDriver()->sendPositionCommand(compensationAzimuth, compensationElevation);
+         controller->sendPositionCommand(compensationAzimuth, compensationElevation);
 
     }
 }

@@ -30,7 +30,7 @@ void TargetTrackingMotionMode::handleJoystickInput(GimbalController* controller,
 
 void TargetTrackingMotionMode::update(GimbalController* controller) {
     // Use the latest target position to calculate motor commands
-    controller->getGimbalMotorDriver()->sendPositionCommand(m_targetAzimuth, m_targetElevation);
+    controller->sendPositionCommand(m_targetAzimuth, m_targetElevation);
 }
 
 void TargetTrackingMotionMode::onTargetPositionUpdated(double azimuth, double elevation) {

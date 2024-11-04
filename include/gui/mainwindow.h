@@ -17,6 +17,8 @@
 
 #include "../../include/gui/statuspanel.h"
 #include <QFile>
+#include "include/datamodel.h"
+
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -91,7 +93,7 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
-
+    DataModel *m_dataModel;
     StateManager *m_stateManager;
     JoystickHandler *m_joystickHandler;
     CameraSystem *m_cameraSystem;
@@ -139,6 +141,8 @@ private:
  void checkCameraStatus();
  void checkSystemStatus();
  void checkJoystickStatus();
+     bool m_detectionEnabled;
+    bool m_stabilizationEnabled;
 };
 
 #endif // MAINWINDOW_H

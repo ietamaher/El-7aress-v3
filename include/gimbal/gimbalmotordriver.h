@@ -44,7 +44,6 @@ private slots:
     void handleElevationConnectionStatusChanged(bool connected);
 
 private:
-    MduinoController *m_mduinoController;
     ServoDriverInterface *m_azimuthServoDriver;
     ServoDriverInterface *m_elevationServoDriver;
 

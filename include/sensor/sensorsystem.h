@@ -9,11 +9,13 @@
 #include "gyrointerface.h"
 #include "radarinterface.h"
 #include "plcsensorsinterface.h"
+#include "include/datamodel.h"
+
 
 class SensorSystem : public QObject {
     Q_OBJECT
 public:
-    explicit SensorSystem(QObject *parent = nullptr);
+    explicit SensorSystem(DataModel *dataModel, QObject *parent = nullptr);
     ~SensorSystem();
 
 
@@ -91,6 +93,7 @@ signals:
 private:
     //LRFInterface *m_lrfInterface;
     QPointer<LRFInterface> m_lrfInterface;
+    DataModel *m_dataModel;
 
     GyroInterface *m_gyroInterface;
     RadarInterface *m_radarInterface;

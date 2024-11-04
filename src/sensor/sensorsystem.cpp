@@ -4,8 +4,9 @@
 #include <QDebug>
 #include "include/comm/serialportmanager.h"
 
-SensorSystem::SensorSystem(QObject *parent)
+SensorSystem::SensorSystem(DataModel *dataModel, QObject *parent)
     : QObject(parent),
+    m_dataModel(dataModel),
     m_sensorsActive(false),
     m_lrfActive(false),
     m_stabilizationEnabled(false),
@@ -200,6 +201,8 @@ void SensorSystem::onGyroDataReceived(double Roll, double Pitch, double Yaw) {
     m_pitch = Pitch;
     m_yaw = Yaw;
     emit gyroDataUpdated(m_roll, m_pitch, m_yaw);
+    // Update DataModel
+    m_dataModel->setGyroOrientation(Roll, Pitch, Pitch);
 }
 
 // Methods for RADAR
@@ -311,4 +314,8 @@ void SensorSystem::handleRangingDataReceived(quint8 status, quint16 distance, qu
     // Optionally process ranging data
     qDebug() << "SensorSystem received rangingDataReceived:" << status << distance << decimalPlaces << echoStatus;
     emit rangingDataReceived(status, distance, decimalPlaces, echoStatus);
+    // Update DataModel
+    double distanceInMeters = distance / 100.0 + decimalPlaces / 10000.0;
+    m_dataModel->setLRFDistance(distanceInMeters);
+
 }

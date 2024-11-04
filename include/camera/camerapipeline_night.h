@@ -35,6 +35,7 @@
 #include <QMutex>
 #include <QMetaType>
 #include <set>
+#include "include/datamodel.h"
 
 // Declare std::set<int> as a metatype
 Q_DECLARE_METATYPE(std::set<int>)

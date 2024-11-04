@@ -3,7 +3,7 @@
 
 GimbalMotorDriver::GimbalMotorDriver(QObject *parent)
     : QObject(parent),
-    //m_mduinoController(new MduinoController("/dev/pts/12", 115200, 1, this)), // Adjust port and slave ID
+    //m_mduinoController(new PLCServoInterface("/dev/pts/12", 115200, 1, this)), // Adjust port and slave ID
     m_azimuthServoDriver(new ServoDriverInterface("azServo", "/dev/pts/4", 115200, 1, this)),
     m_elevationServoDriver(new ServoDriverInterface("elServo", "/dev/pts/7", 115200, 1, this)),
     m_azimuthPosition(0.0),

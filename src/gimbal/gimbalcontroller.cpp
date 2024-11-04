@@ -5,14 +5,18 @@
 #include "include/gimbal/radartrackingmotionmode.h"
 #include <QDebug>
 
-GimbalController::GimbalController(QObject *parent)
+GimbalController::GimbalController(DataModel *dataModel, QObject *parent)
     : QObject(parent),
+      m_dataModel(dataModel),
+    m_plcServoInterface(nullptr),
+    m_azimuthServoDriver(new ServoDriverInterface("elServo", "/dev/pts/4", 115200, 1, this)),
+    m_elevationServoDriver(new ServoDriverInterface("elServo", "/dev/pts/7", 115200, 1, this)),
+    m_azimuthPosition(0.0),
+    m_elevationPosition(0.0),
       m_enabled(false),
       m_manualControlEnabled(false),
       m_currentOpsMode(OperationalMode::Idle),
       m_currentMotionMode(nullptr),
-      m_gimbalMotorDriver(new GimbalMotorDriver(this)),
-      m_plcServoInterface(nullptr),
       m_sensorSystem(nullptr),
       m_cameraSystem(nullptr),
     m_currentMotionModeType(MotionModeType::Manual),
@@ -20,27 +24,26 @@ GimbalController::GimbalController(QObject *parent)
       m_azimuth(0.0),
       m_elevation(0.0)
 {
+
     // Initialize the motor driver
     qDebug() << "GimbalController constructor called";
 
-    if (!m_gimbalMotorDriver->initialize()) {
-       qDebug() << "Failed to initialize GimbalMotorDriver";
-    }
+
 
     // Connect signals from motor driver
-    connect(m_gimbalMotorDriver, &GimbalMotorDriver::azimuthDataUpdated, this, &GimbalController::onAzimuthDataUpdated);
-    connect(m_gimbalMotorDriver, &GimbalMotorDriver::elevationDataUpdated, this, &GimbalController::onElevationDataUpdated);
+    connect(m_azimuthServoDriver, &ServoDriverInterface::dataRead,  this, &GimbalController::onAzimuthDataUpdated);
+    connect(m_elevationServoDriver, &ServoDriverInterface::dataRead,  this, &GimbalController::onElevationDataUpdated);
 
-    connect(m_gimbalMotorDriver, &GimbalMotorDriver::elevationConnectionStatusChanged, this, &GimbalController::handleElevationConnectionStatusChanged);
-    connect(m_gimbalMotorDriver, &GimbalMotorDriver::azimuthConnectionStatusChanged, this, &GimbalController::handleAzimuthConnectionStatusChanged);
+    connect(m_elevationServoDriver, &ServoDriverInterface::connectionStatusChanged, this, &GimbalController::handleElevationConnectionStatusChanged);
+    connect(m_azimuthServoDriver, &ServoDriverInterface::connectionStatusChanged, this, &GimbalController::handleAzimuthConnectionStatusChanged);
 
-    // Connect joystick button signal
-    //connect(m_joystickHandler, &JoystickHandler::buttonPressed, this, &GimbalController::handleJoystickButtonPressed);
 
-    connect(m_gimbalMotorDriver, &GimbalMotorDriver::logMessage,
-            this, [](const QString &message) {
-                qDebug() << "GimbalMotorDriver:" << message;
-            });
+
+    // Connect log messages
+    connect(m_azimuthServoDriver, &ServoDriverInterface::logMessage, this, &GimbalController::logMessage);
+
+    connect(m_elevationServoDriver, &ServoDriverInterface::logMessage, this, &GimbalController::logMessage);
+
 }
 
 GimbalController::~GimbalController() {
@@ -49,6 +52,14 @@ GimbalController::~GimbalController() {
     }
 }
 
+
+double GimbalController::getAzimuthPosition() const {
+    return m_azimuthPosition;
+}
+
+double GimbalController::getElevationPosition() const {
+    return m_elevationPosition;
+}
 void GimbalController::setMotionMode(MotionModeType modeType) {
     if (m_currentMotionModeType == modeType)
         return; // No change needed
@@ -117,11 +128,19 @@ void GimbalController::update() {
 
 void GimbalController::setPLCServoInterface(PLCServoInterface *servoInterface) {
     m_plcServoInterface = servoInterface;
+    if (m_plcServoInterface) {
+        // Disconnect previous connections if any
+        disconnect(m_plcServoInterface, nullptr, this, nullptr);
+    }
+    m_plcServoInterface = servoInterface;
+    if (m_plcServoInterface) {
+        // Connect signals
+        //connect(m_plcServoInterface, &PLCSensorInterface::proximitySensorActivated, this, &SensorSystem::proximitySensorActivated);
+        //connect(m_plcServoInterface, &PLCSensorInterface::temperatureUpdated, this, &SensorSystem::temperatureUpdated);
+        //connect(m_plcServoInterface, &PLCSensorInterface::pressureUpdated, this, &SensorSystem::pressureUpdated);
+    }
 }
 
-GimbalMotorDriver* GimbalController::getGimbalMotorDriver() const {
-    return m_gimbalMotorDriver;
-}
 
 SensorSystem* GimbalController::getSensorSystem() const {
     return m_sensorSystem;
@@ -139,16 +158,57 @@ void GimbalController::setCameraSystem(CameraSystem* cameraSystem) {
     m_cameraSystem = cameraSystem;
 }
 
-void GimbalController::onAzimuthDataUpdated(double position, double speed, double torque, double motorTemp, double driverTemp) {
-    m_azimuth = position;
-    emit positionUpdated(m_azimuth, m_elevation);
-    // Process other parameters as needed
+void GimbalController::sendSpeedCommand(double azimuthSpeed, double elevationSpeed) {
+    // Implement if needed
 }
 
-void GimbalController::onElevationDataUpdated(double position, double speed, double torque, double motorTemp, double driverTemp) {
-    m_elevation = position;
-    emit positionUpdated(m_azimuth, m_elevation);
-    // Process other parameters as needed
+
+void GimbalController::sendPositionCommand(double azimuth, double elevation) {
+    // Convert positions to pulses or appropriate units
+    int azimuthPulse = static_cast<int>(azimuth * /* conversion factor */ 1000); // Adjust as needed
+    int elevationPulse = static_cast<int>(elevation * 1000); // Adjust as needed
+
+    // Determine direction based on whether the pulse value is positive or negative
+    bool azimuthDirection = azimuthPulse >= 0;
+    bool elevationDirection = elevationPulse >= 0;
+
+    // Absolute value of pulses
+    azimuthPulse = abs(azimuthPulse);
+    elevationPulse = abs(elevationPulse);
+
+    // Send commands to PLC controller to control PULSE/DIR Drivers
+    m_plcServoInterface->setAzimuthPulse(azimuthPulse);
+    m_plcServoInterface->setAzimuthDirection(azimuthDirection);
+
+    m_plcServoInterface->setElevationPulse(elevationPulse);
+    m_plcServoInterface->setElevationDirection(elevationDirection);
+}
+void GimbalController::onAzimuthDataUpdated(const QVector<uint16_t> &data) {
+    if (data.size() >= 50) {
+        int32_t position = (data[6] << 16) | data[7];
+        int32_t speed = (data[8] << 16) | data[9];
+        int32_t torque = (data[16] << 16) | data[17];
+        int32_t motorTemp = (data[46] << 16) | data[47];
+        int32_t driverTemp = (data[48] << 16) | data[49];
+
+        m_azimuth = position / 1000.0; // Adjust scaling as needed
+
+        emit positionUpdated(m_azimuth, m_elevation);
+    }
+}
+
+void GimbalController::onElevationDataUpdated(const QVector<uint16_t> &data) {
+    if (data.size() >= 50) {
+        int32_t position = (data[6] << 16) | data[7];
+        int32_t speed = (data[8] << 16) | data[9];
+        int32_t torque = (data[16] << 16) | data[17];
+        int32_t motorTemp = (data[46] << 16) | data[47];
+        int32_t driverTemp = (data[48] << 16) | data[49];
+
+        double m_elevation = position / 1000.0; // Adjust scaling as needed
+
+        emit positionUpdated(m_azimuth, m_elevation);
+    }
 }
 void GimbalController::onModeChanged(OperationalMode mode) {
     m_currentOpsMode = mode;

@@ -5,16 +5,23 @@
 
 #include <QDebug>
 
-StateManager::StateManager(QObject *parent)
+
+StateManager::StateManager(DataModel *dataModel, QObject *parent)
     : QObject(parent),
+    m_dataModel(dataModel),
     m_currentState(nullptr),
-    m_gimbalController(new GimbalController(this)),
-    m_cameraSystem(new CameraSystem(this)),
-    m_weaponSystem(new WeaponSystem(this)),
-    m_sensorSystem(new SensorSystem(this))
+    m_gimbalController(new GimbalController(m_dataModel,this)),
+    m_cameraSystem(new CameraSystem(m_dataModel, this)),
+    m_weaponSystem(new WeaponSystem(m_dataModel,this)),
+    m_sensorSystem(new SensorSystem(m_dataModel,this))
 {
+    if (!m_dataModel) {
+        qCritical() << "StateManager: Received nullptr for DataModel!";
+    }
+
     // Initialize to Idle state by default
     setMode(OperationalMode::Idle);
+
 }
 
 StateManager::~StateManager() {
@@ -72,6 +79,10 @@ void StateManager::setMode(OperationalMode mode, bool isManualTracking) {
 
     if (m_currentState) {
         m_currentState->enter(this);
+        QString modeString = operationalModeToString(mode);
+        m_dataModel->setOperationalStateMode(modeString);
+
+
         emit modeChanged(mode);
     }
 
@@ -144,5 +155,25 @@ void StateManager::requestMotionModeChange(MotionModeType modeType) {
 
     else {
         qWarning() << "StateManager: Motion mode change requested, but not in Surveillance Mode or Tracking Mode.";
+    }
+}
+
+// Helper function to convert OperationalMode to QString
+QString StateManager::operationalModeToString(OperationalMode mode) {
+    switch (mode) {
+    case OperationalMode::Idle:
+        return "Idle";
+    case OperationalMode::Surveillance:
+        return "Surveillance";
+    case OperationalMode::Tracking:
+        return "Tracking";
+    case OperationalMode::Engagement:
+        return "Engagement";
+    case OperationalMode::EmergencyOverride:
+        return "Emergency Override";
+    case OperationalMode::SystemError:
+        return "System Error";
+    default:
+        return "Unknown";
     }
 }

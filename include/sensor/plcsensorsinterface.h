@@ -1,12 +1,12 @@
-#ifndef PLCSENSORINTERFACE_H
-#define PLCSENSORINTERFACE_H
+#ifndef PLCSTATIONSENSORINTERFACE_H
+#define PLCSTATIONSENSORINTERFACE_H
 
 #include <QObject>
 #include <QTimer>
 #include <QVector>
 #include <cstdint>
 
-#include "include/comm/plcmodbusworker.h"
+#include "include/comm/plcstationdriver.h"
 #include <functional>
 
 // Define sensor addresses (adjust these as per your setup)
@@ -21,10 +21,10 @@ struct SensorConfig {
     std::function<void(const QVector<uint16_t>&, int)> processData; // Function to process data
 };
 
-class PLCSensorInterface : public QObject {
+class PLCStationSensorInterface : public QObject {
     Q_OBJECT
 public:
-    explicit PLCSensorInterface(PLCModbusWorker *modbusComm, QObject *parent = nullptr);
+    explicit PLCStationSensorInterface(PLCStationDriver *modbusComm, QObject *parent = nullptr);
 
     void startMonitoring(int intervalMs = 1000); // Default to 1 second interval
     void stopMonitoring();
@@ -42,7 +42,7 @@ private slots:
 
 
 private:
-    PLCModbusWorker *m_modbusComm;
+    PLCStationDriver *m_modbusComm;
     QVector<SensorConfig> m_sensorConfigs; // List of sensor configurations
     QTimer *m_readTimer;
 
@@ -54,4 +54,4 @@ private:
 
 };
 
-#endif // PLCSENSORINTERFACE_H
+#endif // PLCSTATIONSENSORINTERFACE_H

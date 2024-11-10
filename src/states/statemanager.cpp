@@ -1,8 +1,4 @@
 #include "include/states/statemanager.h"
-
-
-#include <QDebug>
-
 #include <QDebug>
 
 
@@ -80,7 +76,7 @@ void StateManager::setMode(OperationalMode mode, bool isManualTracking) {
     if (m_currentState) {
         m_currentState->enter(this);
         QString modeString = operationalModeToString(mode);
-        m_dataModel->setOperationalStateMode(modeString);
+        //m_dataModel->setOperationalStateMode(mode);
 
 
         emit modeChanged(mode);

@@ -1,11 +1,12 @@
-#include "include/comm/plcmodbusworker.h"
+#include "include/comm/plcstationdriver.h"
 #include <QModbusDataUnit>
 #include <QModbusReply>
 #include <QSerialPort>
 #include <QVariant>
+
 #include <QDebug>
 
-PLCModbusWorker::PLCModbusWorker(const QString &portName, int baudRate, QObject *parent)
+PLCStationDriver::PLCStationDriver(const QString &portName, int baudRate, QObject *parent)
     : QObject(parent),
     m_modbusDevice(nullptr),
     m_timer(nullptr),
@@ -15,11 +16,11 @@ PLCModbusWorker::PLCModbusWorker(const QString &portName, int baudRate, QObject 
 {
 }
 
-PLCModbusWorker::~PLCModbusWorker() {
+PLCStationDriver::~PLCStationDriver() {
     stopCommunication();
 }
 
-void PLCModbusWorker::startCommunication() {
+void PLCStationDriver::startCommunication() {
     QMutexLocker locker(&m_mutex);
     if (m_running) return;
 
@@ -37,8 +38,8 @@ void PLCModbusWorker::startCommunication() {
     m_modbusDevice->setNumberOfRetries(3);
 
     // Connect signals
-    connect(m_modbusDevice, &QModbusClient::stateChanged, this, &PLCModbusWorker::onStateChanged);
-    connect(m_modbusDevice, &QModbusClient::errorOccurred, this, &PLCModbusWorker::onErrorOccurred);
+    connect(m_modbusDevice, &QModbusClient::stateChanged, this, &PLCStationDriver::onStateChanged);
+    connect(m_modbusDevice, &QModbusClient::errorOccurred, this, &PLCStationDriver::onErrorOccurred);
 
     if (!m_modbusDevice->connectDevice()) {
         logError("Failed to connect to Modbus device: " + m_modbusDevice->errorString());
@@ -46,16 +47,42 @@ void PLCModbusWorker::startCommunication() {
         m_modbusDevice = nullptr;
         return;
     }
+    qDebug() << "PLC STATION is  connected ....";
+
+
+    if (!m_timer) {
+        m_timer = new QTimer(this);
+        connect(m_timer, &QTimer::timeout, this, &PLCStationDriver::performPeriodicTasks);
+    }
+    m_timer->start(250);
 
     m_running = true;
-
-    // Set up the timer for periodic tasks
-    m_timer = new QTimer(this);
-    connect(m_timer, &QTimer::timeout, this, &PLCModbusWorker::performPeriodicTasks);
-    m_timer->start(100); // Every 100 ms
 }
 
-void PLCModbusWorker::stopCommunication() {
+void PLCStationDriver::startPeriodicReads(int intervalMs) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_running || !m_modbusDevice) return;
+
+    if (!m_timer) {
+        m_timer = new QTimer(this);
+        connect(m_timer, &QTimer::timeout, this, &PLCStationDriver::performPeriodicTasks);
+    }
+    m_timer->start(intervalMs);
+}
+
+void PLCStationDriver::performPeriodicTasks() {
+    if (!m_running || !m_modbusDevice) return;
+
+    int serverAddress = 2; // Modbus slave ID
+
+    // Read input bits (digital inputs)
+    readInputBits(serverAddress, DIGITAL_INPUTS_START_ADDRESS, DIGITAL_INPUTS_COUNT);
+
+    // Read input registers (analog inputs)
+    readInputRegisters(serverAddress, ANALOG_INPUTS_START_ADDRESS, ANALOG_INPUTS_COUNT);
+}
+
+void PLCStationDriver::stopCommunication() {
     QMutexLocker locker(&m_mutex);
     if (!m_running) return;
 
@@ -77,16 +104,7 @@ void PLCModbusWorker::stopCommunication() {
     emit logMessage("Disconnected from PLC.");
 }
 
-void PLCModbusWorker::performPeriodicTasks() {
-    if (!m_running || !m_modbusDevice) return;
-
-    // Example periodic tasks
-    int serverAddress = 2; // Set your Modbus server address (slave ID)
-    readRegisters(serverAddress, 0, 6);
-    readInputBits(serverAddress, 0, 13);
-}
-
-void PLCModbusWorker::writeRegister(int serverAddress, int registerAddress, uint16_t value) {
+void PLCStationDriver::writeRegister(int serverAddress, int registerAddress, uint16_t value) {
     if (!m_modbusDevice) return;
 
     QModbusDataUnit writeUnit(QModbusDataUnit::HoldingRegisters, registerAddress, 1);
@@ -94,7 +112,7 @@ void PLCModbusWorker::writeRegister(int serverAddress, int registerAddress, uint
 
     if (auto *reply = m_modbusDevice->sendWriteRequest(writeUnit, serverAddress)) {
         if (!reply->isFinished()) {
-            connect(reply, &QModbusReply::finished, this, &PLCModbusWorker::onWriteFinished);
+            connect(reply, &QModbusReply::finished, this, &PLCStationDriver::onWriteFinished);
         } else {
             // Broadcast replies return immediately
             reply->deleteLater();
@@ -105,7 +123,7 @@ void PLCModbusWorker::writeRegister(int serverAddress, int registerAddress, uint
     }
 }
 
-void PLCModbusWorker::writeRegisters(int serverAddress, int startAddress, const QVector<uint16_t> &values) {
+void PLCStationDriver::writeRegisters(int serverAddress, int startAddress, const QVector<uint16_t> &values) {
     if (!m_modbusDevice) return;
 
     QModbusDataUnit writeUnit(QModbusDataUnit::HoldingRegisters, startAddress, values.size());
@@ -115,7 +133,7 @@ void PLCModbusWorker::writeRegisters(int serverAddress, int startAddress, const 
 
     if (auto *reply = m_modbusDevice->sendWriteRequest(writeUnit, serverAddress)) {
         if (!reply->isFinished()) {
-            connect(reply, &QModbusReply::finished, this, &PLCModbusWorker::onWriteFinished);
+            connect(reply, &QModbusReply::finished, this, &PLCStationDriver::onWriteFinished);
         } else {
             reply->deleteLater();
         }
@@ -125,14 +143,14 @@ void PLCModbusWorker::writeRegisters(int serverAddress, int startAddress, const 
     }
 }
 
-void PLCModbusWorker::readRegisters(int serverAddress, int startAddress, int count) {
+void PLCStationDriver::readRegisters(int serverAddress, int startAddress, int count) {
     if (!m_modbusDevice) return;
 
     QModbusDataUnit readUnit(QModbusDataUnit::HoldingRegisters, startAddress, count);
 
     if (auto *reply = m_modbusDevice->sendReadRequest(readUnit, serverAddress)) {
         if (!reply->isFinished()) {
-            connect(reply, &QModbusReply::finished, this, &PLCModbusWorker::onReadReady);
+            connect(reply, &QModbusReply::finished, this, &PLCStationDriver::onReadReady);
         } else {
             // Reply is finished immediately
             reply->deleteLater();
@@ -142,15 +160,14 @@ void PLCModbusWorker::readRegisters(int serverAddress, int startAddress, int cou
         emit errorOccurred(m_modbusDevice->errorString());
     }
 }
-
-void PLCModbusWorker::readInputBits(int serverAddress, int startAddress, int count) {
+void PLCStationDriver::readInputRegisters(int serverAddress, int startAddress, int count) {
     if (!m_modbusDevice) return;
 
-    QModbusDataUnit readUnit(QModbusDataUnit::DiscreteInputs, startAddress, count);
+    QModbusDataUnit readUnit(QModbusDataUnit::InputRegisters, startAddress, count);
 
     if (auto *reply = m_modbusDevice->sendReadRequest(readUnit, serverAddress)) {
         if (!reply->isFinished()) {
-            connect(reply, &QModbusReply::finished, this, &PLCModbusWorker::onReadReady);
+            connect(reply, &QModbusReply::finished, this, &PLCStationDriver::onReadReady);
         } else {
             reply->deleteLater();
         }
@@ -160,7 +177,25 @@ void PLCModbusWorker::readInputBits(int serverAddress, int startAddress, int cou
     }
 }
 
-void PLCModbusWorker::onReadReady() {
+void PLCStationDriver::readInputBits(int serverAddress, int startAddress, int count) {
+    if (!m_modbusDevice) return;
+
+    QModbusDataUnit readUnit(QModbusDataUnit::DiscreteInputs, startAddress, count);
+
+    if (auto *reply = m_modbusDevice->sendReadRequest(readUnit, serverAddress)) {
+        if (!reply->isFinished()) {
+            connect(reply, &QModbusReply::finished, this, &PLCStationDriver::onReadReady);
+        } else {
+            reply->deleteLater();
+        }
+    } else {
+        logError("Read error: " + m_modbusDevice->errorString());
+        emit errorOccurred(m_modbusDevice->errorString());
+    }
+}
+
+
+void PLCStationDriver::onReadReady() {
     auto reply = qobject_cast<QModbusReply *>(sender());
     if (!reply)
         return;
@@ -180,6 +215,12 @@ void PLCModbusWorker::onReadReady() {
                 bits.append(unit.value(i));
             }
             emit inputBitsRead(unit.startAddress(), bits);
+        } else if (unit.registerType() == QModbusDataUnit::InputRegisters) {
+            QVector<uint16_t> values;
+            for (uint i = 0; i < unit.valueCount(); ++i) {
+                values.append(unit.value(i));
+            }
+            emit inputRegistersRead(unit.startAddress(), values);
         }
     } else {
         logError("Read response error: " + reply->errorString());
@@ -188,8 +229,7 @@ void PLCModbusWorker::onReadReady() {
 
     reply->deleteLater();
 }
-
-void PLCModbusWorker::onWriteFinished() {
+void PLCStationDriver::onWriteFinished() {
     auto reply = qobject_cast<QModbusReply *>(sender());
     if (!reply)
         return;
@@ -206,7 +246,7 @@ void PLCModbusWorker::onWriteFinished() {
     reply->deleteLater();
 }
 
-void PLCModbusWorker::onStateChanged(QModbusDevice::State state) {
+void PLCStationDriver::onStateChanged(QModbusDevice::State state) {
     if (state == QModbusDevice::ConnectedState) {
         emit connectionStatusChanged(true);
         emit logMessage("Connected to PLC via Modbus successfully.");
@@ -217,7 +257,7 @@ void PLCModbusWorker::onStateChanged(QModbusDevice::State state) {
     }
 }
 
-void PLCModbusWorker::onErrorOccurred(QModbusDevice::Error error) {
+void PLCStationDriver::onErrorOccurred(QModbusDevice::Error error) {
     if (error == QModbusDevice::NoError || !m_modbusDevice)
         return;
 
@@ -225,7 +265,7 @@ void PLCModbusWorker::onErrorOccurred(QModbusDevice::Error error) {
     emit errorOccurred(m_modbusDevice->errorString());
 }
 
-void PLCModbusWorker::logError(const QString &message) {
+void PLCStationDriver::logError(const QString &message) {
     emit logMessage(message);
-    qDebug() << "PLCModbusWorker:" << message;
+    qDebug() << "PLCStationDriver:" << message;
 }

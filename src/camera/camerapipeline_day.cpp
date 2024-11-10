@@ -473,27 +473,76 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
 
         // Safely access data from DataModel
 
-        QString currentStateMode = self->m_dataModel->getOperationalStateMode();
+        OperationalMode currentStateMode = self->m_dataModel->getOperationalStateMode();
+        const char* strStateMode;
+        switch (currentStateMode) {
+        case OperationalMode::Idle:
+            strStateMode = "Idle";
+            break;
+        case OperationalMode::Surveillance:
+            strStateMode = "Surveillance";
+            break;
+        case OperationalMode::Tracking:
+            strStateMode = "Tracking";
+            break;
+        case OperationalMode::Engagement:
+            strStateMode = "Engagement";
+            break;
+        default:
+            strStateMode = "Unknown Mode";
+            break;
+        }
+
         QString currentMotionMode = self->m_dataModel->getMotionMode();
         double lrfDistance = self->m_dataModel->getLRFDistance();
         double azimuth, elevation;
         self->m_dataModel->getGimbalOrientation(azimuth, elevation);
-        double gimbalSpeed = self->m_dataModel->getGimbalSpeed();
+        double gimbalSpeed = self->m_dataModel->getSpeedSw();
+        FireMode fireMode = self->m_dataModel->getFireMode();
+        // Function to convert FireMode enum to string
+        const char* strMode;
+        switch (fireMode) {
+        case FireMode::SingleShot:
+            strMode = "Single Shot";
+            break;
+        case FireMode::ShortBurst:
+            strMode = "Short Burst";
+            break;
+        case FireMode::LongBurst:
+            strMode = "Long Burst";
+            break;
+        default:
+            strMode = "Unknown Mode";
+            break;
+        }
+
         bool detectionEnabled = self->m_dataModel->isDetectionEnabled();
-        bool stabilizationEnabled = self->m_dataModel->isStabilizationEnabled();
+        bool stabilizationEnabled = self->m_dataModel->getStabilizationSw();
+        bool activeCamera = self->m_dataModel->getCamera();
+
+        bool gunArmedState = self->m_dataModel->isGunEnabled();          // ARMED or not
+        bool ammunitionLoadState = self->m_dataModel->isLoadAmmunition(); // CHARGED or not
+        bool stationMotionState = self->m_dataModel->getStationState();   // Station motion state
+        bool AuthorizeState = self->m_dataModel->getAuthorizeSw();        // Authorization switch state
+        // READY state is true if all the above are true
+        bool readyState = gunArmedState && ammunitionLoadState && stationMotionState && AuthorizeState;
+
+        NvOSD_ColorParams fontColor = {1.0, 0.0, 0.0, 1.0}; // White
+        NvOSD_ColorParams textBackgroundColor = {0.0, 0.0, 0.0, 0.5}; // Semi-transparent black
+
 
 
         // **State Mode Label**
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_state = &display_meta->text_params[label_index++];
-        txt_params_state->display_text = g_strdup_printf("State Mode: %s", currentStateMode.toUtf8().constData());
+        txt_params_state->display_text = g_strdup_printf("State Mode: %s", strStateMode);
         txt_params_state->x_offset = 10;
         txt_params_state->y_offset = 30;
-        txt_params_state->font_params.font_color = (NvOSD_ColorParams){1.0, 1.0, 1.0, 1.0}; // White
+        txt_params_state->font_params.font_color = fontColor; // White
         txt_params_state->font_params.font_size = 16;
         txt_params_state->font_params.font_name = "Serif";
         txt_params_state->set_bg_clr = 1;
-        txt_params_state->text_bg_clr = (NvOSD_ColorParams){0.0, 0.0, 0.0, 0.5}; // Semi-transparent black
+        txt_params_state->text_bg_clr = textBackgroundColor; // Semi-transparent black
 
         // **Motion Mode Label**
         display_meta->num_labels++;
@@ -535,6 +584,80 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         txt_params_stab->set_bg_clr = txt_params_state->set_bg_clr;
         txt_params_stab->text_bg_clr = txt_params_state->text_bg_clr;
 
+        // **Display Gimbal Speed on OSD**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_speed = &display_meta->text_params[label_index++];
+        txt_params_speed->display_text = g_strdup_printf("Gimbal Speed: %.0f%%", gimbalSpeed);
+
+        // Set text parameters (position, font, color)
+        txt_params_speed->x_offset = 10; // Adjust x position as needed
+        txt_params_speed->y_offset = 210; // Adjust y position as needed
+        txt_params_speed->font_params.font_name = "Serif";
+        txt_params_speed->font_params.font_size = 16;
+        txt_params_speed->font_params.font_color = fontColor; // White color
+        txt_params_speed->set_bg_clr = 1;
+        txt_params_speed->text_bg_clr = textBackgroundColor; // Semi-transparent black background
+
+        // **Display Fire Mode  on OSD**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_mode = &display_meta->text_params[label_index++];
+
+
+
+        txt_params_mode->display_text = g_strdup_printf("Fire Mode: %s", strMode);
+
+        // Set text parameters (position, font, color)
+        txt_params_mode->x_offset = 10; // Adjust x position as needed
+        txt_params_mode->y_offset = 240; // Adjust y position as needed
+        txt_params_mode->font_params.font_name = "Serif";
+        txt_params_mode->font_params.font_size = 16;
+        txt_params_mode->font_params.font_color = fontColor; // White color
+        txt_params_mode->set_bg_clr = 1;
+        txt_params_mode->text_bg_clr = textBackgroundColor; // Semi-transparent black background
+
+        // ** Active Camera Label**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_camera = &display_meta->text_params[label_index++];
+        txt_params_camera->display_text = g_strdup_printf("Camera: %s", activeCamera ? "DAY" : "THERMAL");
+        txt_params_camera->x_offset = 10;
+        txt_params_camera->y_offset = 270; // Adjust as needed
+        txt_params_camera->font_params = txt_params_state->font_params;
+        txt_params_camera->set_bg_clr = txt_params_state->set_bg_clr;
+        txt_params_camera->text_bg_clr = txt_params_state->text_bg_clr;
+
+
+
+        // **CHARGED Status Label**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_charged = &display_meta->text_params[label_index++];
+        txt_params_charged->display_text = g_strdup_printf("CHARGED: %s", ammunitionLoadState ? "CHARGED" : "-");
+        txt_params_charged->x_offset = 10;
+        txt_params_charged->y_offset = 320; // Adjust as needed
+        txt_params_charged->font_params = txt_params_state->font_params;
+        txt_params_charged->set_bg_clr = txt_params_state->set_bg_clr;
+        txt_params_charged->text_bg_clr = txt_params_state->text_bg_clr;
+
+        // **ARMED Status Label**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_armed = &display_meta->text_params[label_index++];
+        txt_params_armed->display_text = g_strdup_printf("ARMED: %s", gunArmedState ? "ARMED" : "-");
+        txt_params_armed->x_offset = 10;
+        txt_params_armed->y_offset = 350; // Adjust as needed
+        txt_params_armed->font_params = txt_params_state->font_params;
+        txt_params_armed->set_bg_clr = txt_params_state->set_bg_clr;
+        txt_params_armed->text_bg_clr = txt_params_state->text_bg_clr;
+
+        // **READY Status Label**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_ready = &display_meta->text_params[label_index++];
+        txt_params_ready->display_text = g_strdup_printf("READY: %s", readyState ? "READY" : "-");
+        txt_params_ready->x_offset = 10;
+        txt_params_ready->y_offset = 380; // Adjust as needed
+        txt_params_ready->font_params = txt_params_state->font_params;
+        txt_params_ready->set_bg_clr = txt_params_state->set_bg_clr;
+        txt_params_ready->text_bg_clr = txt_params_state->text_bg_clr;
+
+
         // **Draw Crosshair**
         int frame_width = frame_meta->source_frame_width;
         int frame_height = frame_meta->source_frame_height;
@@ -548,7 +671,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         line_params_h->x2 = frame_width / 2 + 20;
         line_params_h->y2 = frame_height / 2;
         line_params_h->line_width = 2;
-        line_params_h->line_color = (NvOSD_ColorParams){1.0, 1.0, 1.0, 1.0}; // White
+        line_params_h->line_color = fontColor; // White
 
         // Vertical line
         display_meta->num_lines++;
@@ -558,7 +681,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         line_params_v->x2 = frame_width / 2;
         line_params_v->y2 = frame_height / 2 + 20;
         line_params_v->line_width = 2;
-        line_params_v->line_color = (NvOSD_ColorParams){1.0, 1.0, 1.0, 1.0}; // White
+        line_params_v->line_color = fontColor; // White
 
         // **Add the Display Meta to the Frame**
         nvds_add_display_meta_to_frame(frame_meta, display_meta);

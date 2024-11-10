@@ -5,20 +5,46 @@ DataModel::DataModel(QObject *parent)
       m_lrfDistance(0.0),
       m_azimuthAngle(0.0),
       m_elevationAngle(0.0),
-      m_gimbalSpeed(0.0)
+      m_gimbalSpeed(0.0),
+    m_gunEnabled(false),
+    m_fireMode(FireMode::SingleShot),
+    m_loadAmmunition(false),
+    m_stationState(false),
+    m_speedSw(false),
+    m_homeSw(false),
+    m_stabilizationSw(false),
+    m_authorizeSw(false),
+    m_activeCamera(false),
+    m_upSw(false),
+    m_downSw(false),
+    m_menuValSw(false),
+    m_panelTemperature(0),
+    m_stationUpperSensor(false),
+    m_stationLowerSensor(false),
+    m_stationAmmunitionLevel(false),
+    m_stationInput1(false),
+    m_stationInput2(false),
+    m_stationInput3(false),
+    m_stationTemperature(0),
+    m_stationPressure(0)
+
+
 {
     m_systemTime = QDateTime::currentDateTime();
 }
 
 // Setters
 
-void DataModel::setOperationalStateMode(const QString &mode) {
+void DataModel::setOperationalStateMode(const OperationalMode &mode) {
     QMutexLocker locker(&m_mutex);
-    m_operationalStateMode = mode;
+    if (m_operationalStateMode != mode) {
+        m_operationalStateMode = mode;
+        emit operationalStateModeChange(mode);
+    }
 }
 
 void DataModel::setMotionMode(const QString &mode) {
-    QMutexLocker locker(&m_mutex);
+    //QMutexLocker locker(&m_mutex);
     m_motionMode = mode;
 }
 
@@ -86,7 +112,7 @@ void DataModel::setStabilizationEnabled(bool enabled) {
 }
 // Getters
 
-QString DataModel::getOperationalStateMode() {
+OperationalMode DataModel::getOperationalStateMode() {
     QMutexLocker locker(&m_mutex);
     return m_operationalStateMode;
 }
@@ -110,6 +136,194 @@ void DataModel::setGimbalOrientation(double azimuth, double elevation) {
         m_elevationAngle = elevation;
     }
 }
+
+void DataModel::setGunEnabled(bool enabled)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_gunEnabled != enabled) {
+        m_gunEnabled = enabled;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setFireMode(FireMode mode)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_fireMode != mode) {
+        m_fireMode = mode;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setLoadAmmunition(bool loaded)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_loadAmmunition != loaded) {
+        m_loadAmmunition = loaded;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setStationState(bool state)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_stationState != state) {
+        m_stationState = state;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setSpeedSw(int speed)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_speedSw != speed) {
+        m_speedSw = speed;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setHomeSw(bool state)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_homeSw != state) {
+        m_homeSw = state;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setStabilizationSw(bool state)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_stabilizationSw != state) {
+        m_stabilizationSw = state;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setAuthorizeSw(bool state)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_authorizeSw != state) {
+        m_authorizeSw = state;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setCamActive(bool state)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_activeCamera != state) {
+        m_activeCamera = state;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setUpSw(bool state)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_upSw != state) {
+        m_upSw = state;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setDownSw(bool state)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_downSw != state) {
+        m_downSw = state;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setMenuValSw(bool state)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_menuValSw != state) {
+        m_menuValSw = state;
+        emit dataModelUpdated();
+    }
+}
+
+void DataModel::setPanelTemperature(int temperature)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_panelTemperature != temperature) {
+        m_panelTemperature = temperature;
+        emit dataModelUpdated();
+    }
+}
+
+
+void DataModel::setStationUpperSensor(bool state)
+{
+    if (m_stationUpperSensor != state) {
+        m_stationUpperSensor = state;
+        // You can emit a signal here if needed
+    }
+}
+
+void DataModel::setStationLowerSensor(bool state)
+{
+    if (m_stationLowerSensor != state) {
+        m_stationLowerSensor = state;
+        // Emit signal if necessary
+    }
+}
+
+void DataModel::setStationAmmunitionLevel(bool state)
+{
+    if (m_stationAmmunitionLevel != state) {
+        m_stationAmmunitionLevel = state;
+        // Emit signal if necessary
+    }
+}
+
+void DataModel::setStationInput1(bool state)
+{
+    if (m_stationInput1 != state) {
+        m_stationInput1 = state;
+        // Emit signal if necessary
+    }
+}
+
+void DataModel::setStationInput2(bool state)
+{
+    if (m_stationInput2 != state) {
+        m_stationInput2 = state;
+        // Emit signal if necessary
+    }
+}
+
+void DataModel::setStationInput3(bool state)
+{
+    if (m_stationInput3 != state) {
+        m_stationInput3 = state;
+        // Emit signal if necessary
+    }
+}
+
+void DataModel::setEOTemperature(int temperature)
+{
+    if (m_stationTemperature != temperature) {
+        m_stationTemperature = temperature;
+        // Emit signal if necessary
+    }
+}
+
+void DataModel::setEOPressure(int pressure)
+{
+    if (m_stationPressure != pressure) {
+        m_stationPressure = pressure;
+        // Emit signal if necessary
+    }
+}
+
+
+
+
+
+/* GETTERS */
 
 double DataModel::getGimbalSpeed() {
     QMutexLocker locker(&m_mutex);
@@ -172,4 +386,125 @@ bool DataModel::isDetectionEnabled() {
 bool DataModel::isStabilizationEnabled() {
     QMutexLocker locker(&m_mutex);
     return m_stabilizationEnabled;
+}
+
+
+bool DataModel::isGunEnabled()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_gunEnabled;
+}
+
+FireMode DataModel::getFireMode()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_fireMode;
+}
+
+bool DataModel::isLoadAmmunition()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_loadAmmunition;
+}
+
+bool DataModel::getStationState()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_stationState;
+}
+
+int DataModel::getSpeedSw()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_speedSw;
+}
+
+
+
+bool DataModel::getHomeSw()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_homeSw;
+}
+
+bool DataModel::getStabilizationSw()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_stabilizationSw;
+}
+
+bool DataModel::getAuthorizeSw()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_authorizeSw;
+}
+
+bool DataModel::getCamera()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_activeCamera;
+}
+
+bool DataModel::getUpSw()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_upSw;
+}
+
+bool DataModel::getDownSw()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_downSw;
+}
+
+bool DataModel::getMenuValSw()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_menuValSw;
+}
+
+int DataModel::getPanelTemperature()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_panelTemperature;
+}
+
+bool DataModel::getStationUpperSensor()
+{
+    return m_stationUpperSensor;
+}
+
+bool DataModel::getStationLowerSensor()
+{
+    return m_stationLowerSensor;
+}
+
+bool DataModel::getStationAmmunitionLevel()
+{
+    return m_stationAmmunitionLevel;
+}
+
+bool DataModel::getStationInput1()
+{
+    return m_stationInput1;
+}
+
+bool DataModel::getStationInput2()
+{
+    return m_stationInput2;
+}
+
+bool DataModel::getStationInput3()
+{
+    return m_stationInput3;
+}
+
+int DataModel::getEOTemperature()
+{
+    return m_stationTemperature;
+}
+
+int DataModel::getEOPressure()
+{
+    return m_stationPressure;
 }

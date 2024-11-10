@@ -7,14 +7,23 @@
 #include <QPointF>
 #include <QDateTime>
 
+#include "include/states/operationalstate.h"
+
+enum class FireMode {
+    SingleShot = 0,
+    ShortBurst = 1,
+    LongBurst = 2
+};
+
+
 class DataModel : public QObject {
     Q_OBJECT
 public:
     explicit DataModel(QObject *parent = nullptr);
 
-    // Setters (slots)
+
 public slots:
-    void setOperationalStateMode(const QString &mode);
+    void setOperationalStateMode(const OperationalMode &mode);
     void setMotionMode(const QString &mode);
     void setLRFDistance(double distance);
     void setGyroOrientation(double roll, double pitch, double yaw);
@@ -29,11 +38,38 @@ public slots:
     void setAlertsWarnings(const QString &alerts);
     void setDetectionEnabled(bool enabled);
     void setStabilizationEnabled(bool enabled);
- 
+
+    // Setters For PLC Monitor
+    void setGunEnabled(bool enabled);
+    void setLoadAmmunition(bool loaded);
+    void setStationState(bool state);
+    void setHomeSw(bool state);
+    void setStabilizationSw(bool state);
+    void setAuthorizeSw(bool state);
+    void setCamActive(bool state);
+    void setUpSw(bool state);
+    void setDownSw(bool state);
+    void setMenuValSw(bool state);
+    void setFireMode(FireMode mode);
+    void setSpeedSw(int speed);
+    void setPanelTemperature(int temperature);
+
+
+    void setStationUpperSensor(bool state);
+    void setStationLowerSensor(bool state);
+    void setStationAmmunitionLevel(bool state);
+    void setStationInput1(bool state);
+    void setStationInput2(bool state);
+    void setStationInput3(bool state);
+
+    void setEOTemperature(int temperature);
+    void setEOPressure(int pressure);
+
+
 
     // Getters
 public:
-    QString getOperationalStateMode();
+    OperationalMode getOperationalStateMode();
     QString getMotionMode();
     double getLRFDistance();
     void getGyroOrientation(double &roll, double &pitch, double &yaw);
@@ -50,9 +86,41 @@ public:
     bool isDetectionEnabled();
     bool isStabilizationEnabled();
 
+    // Getters For PLC Monitor
+    bool isGunEnabled();
+
+    bool isLoadAmmunition();
+    bool getStationState();
+
+    bool getHomeSw();
+    bool getStabilizationSw();
+    bool getAuthorizeSw();
+    bool getCamera();
+    bool getUpSw();
+    bool getDownSw();
+    bool getMenuValSw();
+    int getSpeedSw();
+    FireMode getFireMode();
+    int getPanelTemperature();
+
+    bool getStationUpperSensor();
+    bool getStationLowerSensor();
+    bool getStationAmmunitionLevel();
+    bool getStationInput1();
+    bool getStationInput2();
+    bool getStationInput3();
+
+    int getEOTemperature();
+    int getEOPressure();
+
+
+signals:
+    // Optional: Signals to notify changes
+    void dataModelUpdated();
+    void operationalStateModeChange(const OperationalMode &mode);
 private:
     // Data members
-    QString m_operationalStateMode;
+    OperationalMode m_operationalStateMode;
     QString m_motionMode;
     double m_lrfDistance;
     double m_roll, m_pitch, m_yaw;
@@ -70,8 +138,33 @@ private:
     bool m_detectionEnabled;
     bool m_stabilizationEnabled;
 
-    
+    bool m_gunEnabled;
+    FireMode m_fireMode;
+    bool m_loadAmmunition;
+    bool m_stationState;
+    int m_speedSw;
+    bool m_homeSw;
+    bool m_stabilizationSw;
+    bool m_authorizeSw;
+    bool m_activeCamera;
+    bool m_upSw;
+    bool m_downSw;
+    bool m_menuValSw;
+    int m_panelTemperature;
+
+    bool m_stationUpperSensor;
+    bool m_stationLowerSensor;
+    bool m_stationAmmunitionLevel;
+
+    bool m_stationInput1;
+    bool m_stationInput2;
+    bool m_stationInput3;
+    int m_stationTemperature;
+    int m_stationPressure;
+
     QMutex m_mutex; // Protects data members
+
+
 };
 
 #endif // DATAMODEL_H

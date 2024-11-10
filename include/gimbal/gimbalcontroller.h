@@ -42,6 +42,7 @@ public:
     void setCameraSystem(CameraSystem* cameraSystem);
     void setPLCServoInterface(PLCServoInterface *servoInterface);
 
+    void shutdown();
 
     void setPanSpeed(float speed);
     void setTiltSpeed(float speed);
@@ -68,6 +69,7 @@ public:
     double getAzimuthPosition() const;
     double getElevationPosition() const;
 
+    DataModel* getDataModel() const { return m_dataModel; }
 
 public slots:
     //void onAxisMoved(int axis, float normalizedValue);
@@ -114,6 +116,9 @@ private:
     double m_azimuth;
     double m_elevation;
     DataModel *m_dataModel;
+
+    float m_panSpeed;
+    float m_tiltSpeed;
 
     // Feedback update method
     void readFeedback();

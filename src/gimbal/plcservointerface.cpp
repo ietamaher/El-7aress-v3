@@ -1,55 +1,39 @@
 #include "include/gimbal/plcservointerface.h"
 #include <QDebug>
 
-PLCServoInterface::PLCServoInterface(PLCModbusWorker *modbusWorker, QObject *parent)
+PLCServoInterface::PLCServoInterface(PLCStationDriver *modbusWorker, QObject *parent)
     : QObject(parent),
     m_modbusWorker(modbusWorker)
 {
-    connect(m_modbusWorker, &PLCModbusWorker::logMessage, this, &PLCServoInterface::logMessage);
-    connect(m_modbusWorker, &PLCModbusWorker::writeCompleted, this, &PLCServoInterface::onWriteCompleted);
-    connect(m_modbusWorker, &PLCModbusWorker::errorOccurred, this, &PLCServoInterface::onErrorOccurred);
+    connect(m_modbusWorker, &PLCStationDriver::logMessage, this, &PLCServoInterface::logMessage);
+    connect(m_modbusWorker, &PLCStationDriver::writeCompleted, this, &PLCServoInterface::onWriteCompleted);
+    connect(m_modbusWorker, &PLCStationDriver::errorOccurred, this, &PLCServoInterface::onErrorOccurred);
 }
 
-void PLCServoInterface::setAzimuthPulse(int pulse) {
-    uint16_t value = static_cast<uint16_t>(pulse);
-    int address = AZIMUTH_PULSE_ADDRESS;
-    m_pendingWrites.insert(address);
+void PLCServoInterface::setServoParameters(int azimuthPulse, bool azimuthDirection, int elevationPulse, bool elevationDirection) {
+    m_azimuthPulse = static_cast<uint16_t>(azimuthPulse);
+    m_azimuthDirection = azimuthDirection ? 1 : 0;
+    m_elevationPulse = static_cast<uint16_t>(elevationPulse);
+    m_elevationDirection = elevationDirection ? 1 : 0;
+}
 
+void PLCServoInterface::sendServoParameters() {
     int serverAddress = 2; // Set your Modbus server address (slave ID)
-    m_modbusWorker->writeRegister(serverAddress, address, value);
-}
 
-void PLCServoInterface::setAzimuthDirection(bool direction) {
-    uint16_t value = direction ? 1 : 0;
-    int address = AZIMUTH_DIRECTION_ADDRESS;
-    m_pendingWrites.insert(address);
+    // Prepare the values to write
+    QVector<uint16_t> values = {
+        m_azimuthPulse,
+        m_azimuthDirection,
+        m_elevationPulse,
+        m_elevationDirection
+    };
 
-    int serverAddress = 2;
-    m_modbusWorker->writeRegister(serverAddress, address, value);
-}
-
-
-void PLCServoInterface::setElevationPulse(int pulse) {
-    uint16_t value = static_cast<uint16_t>(pulse);
-    int address = ELEVATION_PULSE_ADDRESS;
-    m_pendingWrites.insert(address);
-    int serverAddress = 2;
-    m_modbusWorker->writeRegister(serverAddress, address, value);
-}
-
-void PLCServoInterface::setElevationDirection(bool direction) {
-    uint16_t value = direction ? 1 : 0;
-    int address = ELEVATION_DIRECTION_ADDRESS;
-    m_pendingWrites.insert(address);
-    int serverAddress = 2;
-    m_modbusWorker->writeRegister(serverAddress, address, value);
+    // Write multiple registers starting from AZIMUTH_PULSE_ADDRESS
+    m_modbusWorker->writeRegisters(serverAddress, AZIMUTH_PULSE_ADDRESS, values);
 }
 
 void PLCServoInterface::onWriteCompleted(int address) {
-    if (m_pendingWrites.contains(address)) {
-        m_pendingWrites.remove(address);
-        emit logMessage(QString("Write to address %1 completed successfully.").arg(address));
-    }
+    emit logMessage(QString("Write to address %1 completed successfully.").arg(address));
 }
 
 void PLCServoInterface::onErrorOccurred(const QString &message) {
@@ -60,4 +44,3 @@ void PLCServoInterface::logError(const QString &message) {
     emit logMessage(message);
     qDebug() << "PLCServoInterface:" << message;
 }
-

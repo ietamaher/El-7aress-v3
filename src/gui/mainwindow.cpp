@@ -14,7 +14,12 @@ MainWindow::MainWindow(QWidget *parent)
     m_dataModel(new DataModel(this)),
     m_stateManager(new StateManager(m_dataModel, this)) ,
     ui(new Ui::MainWindow),
-    m_manualGimbalControlEnabled(false)
+    m_currentGimbalSpeed(10.0), // Default speed percentage
+    m_speedValues({2, 5, 10, 20, 50, 100}),
+    m_speedIndex(2), // Corresponds to 10%
+    m_manualGimbalControlEnabled(false),
+    m_detectionEnabled(false),
+    m_stabilizationEnabled(false)
 {
     ui->setupUi(this);
     initializeComponents();
@@ -64,9 +69,10 @@ MainWindow::~MainWindow() {
     }
 
     // Clean up other systems if necessary
-    /*if (m_gimbalController) {
+    if (m_gimbalController) {
         m_gimbalController->shutdown(); // Implement a shutdown method if needed
-    }*/
+    }
+
     if (m_cameraSystem) {
         m_cameraSystem->shutdown(); // Implement a shutdown method if needed
     }
@@ -76,9 +82,6 @@ MainWindow::~MainWindow() {
 
 void MainWindow::initializeComponents() {
 
-    // Create system instances
-    //m_stateManager = new   StateManager(this);
-
     // Get subsystem instances from StateManager
     m_cameraSystem = m_stateManager->getCameraSystem();
     m_gimbalController = m_stateManager->getGimbalController();
@@ -87,24 +90,20 @@ void MainWindow::initializeComponents() {
 
 
     m_joystickHandler = new JoystickHandler("/dev/input/js0", this);
-    /*m_cameraSystem = new CameraSystem(this);
-
-    m_gimbalController = new GimbalController(this);
-    m_weaponSystem = new WeaponSystem(this);
-    m_sensorSystem = new SensorSystem(this);*/
 
     // Create the shared PLC ModbusCommunication instance
-    m_modbusWorker = new PLCModbusWorker("/dev/pts/11", 115200, this);
-
+    m_modbusWorker = new PLCStationDriver("/dev/pts/11", 115200, this);
     // Create interfaces using the shared ModbusCommunication instance
     m_plcServoInterface = new PLCServoInterface(m_modbusWorker, this);
     m_plcSolenoidInterface = new PLCSolenoidInterface(m_modbusWorker, this);
-    m_plcSensorInterface = new PLCSensorInterface(m_modbusWorker, this);
+    m_plcStationSensorInterface = new PLCStationSensorInterface(m_modbusWorker, this);
+
+
 
     // Set interfaces in systems
     m_gimbalController->setPLCServoInterface(m_plcServoInterface);
     m_weaponSystem->setPLCSolenoidInterface(m_plcSolenoidInterface);
-    m_sensorSystem->setPLCSensorInterface(m_plcSensorInterface);
+    m_sensorSystem->setPLCStationSensorInterface(m_plcStationSensorInterface);
 
     // Start monitoring sensors
     m_sensorSystem->startMonitoringSensors();
@@ -145,10 +144,15 @@ void MainWindow::initializeComponents() {
     statusTimer = new QTimer(this);
     connect(statusTimer, &QTimer::timeout, this, &MainWindow::checkSystemStatus);
     //statusTimer->start(1000); // Check every second
+    ui->lblGimbalSpeed->setText(QString("%1%").arg(m_speedValues[m_speedIndex]));
+
 
 }
 
 void MainWindow::connectSignals() {
+
+    connect(m_dataModel, &DataModel::operationalStateModeChange, this, &MainWindow::onOperationalStateModeChanged);
+
     connect(m_joystickHandler, &JoystickHandler::axisMoved, this, &MainWindow::onJoystickAxisMoved);
     connect(m_joystickHandler, &JoystickHandler::buttonPressed, this, &MainWindow::onJoystickButtonPressed);
 
@@ -181,18 +185,18 @@ void MainWindow::connectSignals() {
     connect(statusTimer, &QTimer::timeout, this, &MainWindow::checkCameraStatus);
     connect(statusTimer, &QTimer::timeout, this, &MainWindow::checkJoystickStatus);
 
-     connect(m_modbusWorker, &PLCModbusWorker::connectionStatusChanged, this, &MainWindow::onPLC1StatusChanged);
+     connect(m_modbusWorker, &PLCStationDriver::connectionStatusChanged, this, &MainWindow::onPLC1StatusChanged);
     connect(m_sensorSystem, &SensorSystem::gyroConnectionStatusChanged, this, &MainWindow::onGyroStatusChanged);
      connect(m_sensorSystem, &SensorSystem::radarConnectionStatusChanged, this, &MainWindow::onRadarStatusChanged);
     connect(m_sensorSystem, &SensorSystem::lrfConnectionStatusChanged, this, &MainWindow::onLRFStatusChanged);
 
      // Connect signals and slots
-    connect(m_modbusWorker, &PLCModbusWorker::connectionStatusChanged, this, &MainWindow::onPLC1StatusChanged);
-    //connect(m_modbusWorker, &PLCModbusWorker::logMessage, this, &MainWindow::onPLCLogMessage);
-    //connect(m_modbusWorker, &PLCModbusWorker::registersRead, this, &MainWindow::onPLCRegistersRead);
-    //connect(m_modbusWorker, &PLCModbusWorker::inputBitsRead, this, &MainWindow::onPLCInputBitsRead);
-    //connect(m_modbusWorker, &PLCModbusWorker::writeCompleted, this, &MainWindow::onPLCWriteCompleted);
-    //connect(m_modbusWorker, &PLCModbusWorker::errorOccurred, this, &MainWindow::onPLCErrorOccurred);
+    connect(m_modbusWorker, &PLCStationDriver::connectionStatusChanged, this, &MainWindow::onPLC1StatusChanged);
+    //connect(m_modbusWorker, &PLCStationDriver::logMessage, this, &MainWindow::onPLCLogMessage);
+    //connect(m_modbusWorker, &PLCStationDriver::registersRead, this, &MainWindow::onPLCRegistersRead);
+    //connect(m_modbusWorker, &PLCStationDriver::inputBitsRead, this, &MainWindow::onPLCInputBitsRead);
+    //connect(m_modbusWorker, &PLCStationDriver::writeCompleted, this, &MainWindow::onPLCWriteCompleted);
+    //connect(m_modbusWorker, &PLCStationDriver::errorOccurred, this, &MainWindow::onPLCErrorOccurred);
 
 
     //connect(m_gimbalMotorDriver, &GimbalMotorDriver::stepperMotorStatusChanged, this, &MainWindow::onStepperMotorStatusChanged);
@@ -622,6 +626,43 @@ void MainWindow::queryAccumulatedLaserCount()
     qDebug() << "Sending Query Accumulated Laser Count Command.";
     m_sensorSystem->queryAccumulatedLaserCount();
 }
+void MainWindow::onOperationalStateModeChanged(const OperationalMode &mode)
+{
+    switch (mode) {
+    case OperationalMode::Idle: {
+        m_stateManager->setMode(OperationalMode::Idle);
+        break;
+    }
+    case OperationalMode::Surveillance: {
+        m_stateManager->setMode(OperationalMode::Surveillance);
+        MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
+        QString modeName;
+        switch (currentMode) {
+        case MotionModeType::Manual:
+            modeName = "Manual";
+            break;
+        case MotionModeType::Pattern:
+            modeName = "Pattern";
+            break;
+        case MotionModeType::Radar:
+            modeName = "Radar";
+            break;
+        default:
+            modeName = "Unknown";
+            break;
+        }
+
+        ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+        m_dataModel->setMotionMode(modeName);
+        break;
+    }
+    default: {
+        m_stateManager->setMode(OperationalMode::Idle);
+        break;
+    }
+    }
+}
+
 
 
 void MainWindow::on_idleBtn_clicked()
@@ -682,13 +723,13 @@ void MainWindow::on_engageBtn_clicked()
 void MainWindow::on_trckBtn_clicked()
 {
 
-    if (detectionEnabled){
+    if (m_detectionEnabled){
         m_stateManager->getCameraSystem()->setProcessingMode(CameraSystem::ProcessMode::TrackingMode);
      }
     else{
         m_stateManager->getCameraSystem()->setProcessingMode(CameraSystem::ProcessMode::ManualTrackingMode);
      }
-    bool isManualTracking = !detectionEnabled; // If detection is disabled, manual tracking is true
+    bool isManualTracking = !m_detectionEnabled; // If detection is disabled, manual tracking is true
     m_stateManager->setMode(OperationalMode::Tracking, isManualTracking);
     MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
     QString modeName;
@@ -931,3 +972,42 @@ void MainWindow::on_stabToggleButton_clicked()
 }
 
 
+
+void MainWindow::on_speedPlusButton_clicked()
+{
+    if (m_stateManager->getGimbalController()->getCurrentMotionMode() == MotionModeType::Manual) {
+        if (m_speedIndex < m_speedValues.size() - 1) {
+            m_speedIndex++;
+            m_currentGimbalSpeed = m_speedValues[m_speedIndex];
+            updateGimbalSpeed();
+        }
+    }
+}
+
+
+void MainWindow::on_speedMinusButton_clicked()
+{
+    if (m_stateManager->getGimbalController()->getCurrentMotionMode() == MotionModeType::Manual) {
+        if (m_speedIndex > 0) {
+            m_speedIndex--;
+            m_currentGimbalSpeed = m_speedValues[m_speedIndex];
+            updateGimbalSpeed();
+        }
+    }
+}
+
+void MainWindow::updateGimbalSpeed()
+{
+    // Update the speed label display
+    ui->lblGimbalSpeed->setText(QString("%1%").arg(m_currentGimbalSpeed));
+
+    // Update DataModel
+    m_dataModel->setGimbalSpeed(m_currentGimbalSpeed);
+
+    // Update GimbalController
+    if (m_stateManager->getGimbalController()) {
+        double speed = m_currentGimbalSpeed / 100.0; // Convert percentage to 0-1 range
+        m_stateManager->getGimbalController()->setPanSpeed(speed);
+        m_stateManager->getGimbalController()->setTiltSpeed(speed);
+    }
+}

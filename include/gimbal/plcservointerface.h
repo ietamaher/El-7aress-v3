@@ -2,18 +2,15 @@
 #define PLCSERVOINTERFACE_H
 
 #include <QObject>
-#include <QSet>
-#include "include/comm/plcmodbusworker.h"
+#include "include/comm/plcstationdriver.h"
 
 class PLCServoInterface : public QObject {
     Q_OBJECT
 public:
-    explicit PLCServoInterface(PLCModbusWorker *modbusComm, QObject *parent = nullptr);
+    explicit PLCServoInterface(PLCStationDriver *modbusComm, QObject *parent = nullptr);
 
-    void setAzimuthPulse(int pulse);
-    void setAzimuthDirection(bool direction);
-    void setElevationPulse(int pulse);
-    void setElevationDirection(bool direction);
+    void setServoParameters(int azimuthPulse, bool azimuthDirection, int elevationPulse, bool elevationDirection);
+    void sendServoParameters();
 
 signals:
     void logMessage(const QString &message);
@@ -23,10 +20,7 @@ private slots:
     void onErrorOccurred(const QString &message);
 
 private:
-    PLCModbusWorker *m_modbusWorker;
-    // Map to keep track of pending writes if necessary
-    QSet<int> m_pendingWrites;
-
+    PLCStationDriver *m_modbusWorker;
 
     // Modbus register addresses for servo control
     static constexpr int AZIMUTH_PULSE_ADDRESS = 0;
@@ -34,8 +28,13 @@ private:
     static constexpr int ELEVATION_PULSE_ADDRESS = 2;
     static constexpr int ELEVATION_DIRECTION_ADDRESS = 3;
 
+    // Internal storage for servo parameters
+    uint16_t m_azimuthPulse = 0;
+    uint16_t m_azimuthDirection = 0;
+    uint16_t m_elevationPulse = 0;
+    uint16_t m_elevationDirection = 0;
+
     void logError(const QString &message);
 };
 
 #endif // PLCSERVOINTERFACE_H
-

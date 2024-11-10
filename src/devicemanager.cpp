@@ -1,6 +1,6 @@
 // devicemanager.cpp
 #include "include/devicemanager.h"
-#include "include/comm/plcmodbusworker.h"
+#include "include/comm/plcstationdriver.h"
 #include <QSerialPort>
 //#include <QCamera>
 #include <QDebug>
@@ -160,7 +160,7 @@ bool DeviceManager::initializeFromConfig(const QString &configFilePath)
         QString portName = plcObj["portName"].toString("COM3");
         int baudRate = plcObj["baudRate"].toInt(9600);
         m_plcModbusComm = std::make_shared<PLCModbusCommunication>(portName, baudRate);
-        connect(m_plcModbusComm.get(), &PLCModbusWorker::logMessage, this, &DeviceManager::logMessage);
+        connect(m_plcModbusComm.get(), &PLCStationDriver::logMessage, this, &DeviceManager::logMessage);
         if (!m_plcModbusComm->connectDevice()) {
             emit logMessage("Failed to connect PLC Modbus.");
         }

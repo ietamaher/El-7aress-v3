@@ -13,7 +13,9 @@ SensorSystem::SensorSystem(DataModel *dataModel, QObject *parent)
     m_lrfInterface(new LRFInterface(this)),
     m_gyroInterface(new GyroInterface(this)),
     m_radarInterface(new RadarInterface(this)),
-    m_plcSensorInterface(nullptr),
+    m_plcStationSensorInterface(nullptr),
+    m_plcPanelSensorInterface(new PLCPanelSensorInterface("/dev/pts/13", 115200, 1, this)),
+
     m_roll(0.0),
     m_pitch(0.0),
     m_yaw(0.0)
@@ -48,8 +50,32 @@ SensorSystem::SensorSystem(DataModel *dataModel, QObject *parent)
        qDebug() << "Failed to open Radar serial port";
         // Handle failure
     }
+    // Connect PLCPanelSensorInterface signals to SensorSystem slots
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::gunStateChanged, this, &SensorSystem::onGunStateChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::fireModeStateInputChanged, this, &SensorSystem::onFireModeStateInputChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::loadAmmunitionStateChanged, this, &SensorSystem::onLoadAmmunitionStateChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::stationStateChanged, this, &SensorSystem::onStationStateChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::speedSwChanged, this, &SensorSystem::onSpeedSwChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::homeSwChanged, this, &SensorSystem::onHomeSwChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::stabilizationSwChanged, this, &SensorSystem::onStabilizationSwChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::authorizeSwChanged, this, &SensorSystem::onAuthorizeSwChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::camSwChanged, this, &SensorSystem::onCamSwChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::upSwChanged, this, &SensorSystem::onUpSwChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::downSwChanged, this, &SensorSystem::onDownSwChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::menuValSwChanged, this, &SensorSystem::onMenuValSwChanged);
+    connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::panelTemperatureChanged, this, &SensorSystem::onPanelTemperatureChanged);
 
-    // m_plcSensorInterface is instantiated in the main class!
+    connect(m_plcStationSensorInterface, &PLCStationSensorInterface::stationUpperSensorStateChanged, this, &SensorSystem::onStationUpperSensorStateChanged);
+    connect(m_plcStationSensorInterface, &PLCStationSensorInterface::stationLowerSensorStateChanged, this, &SensorSystem::onStationLowerSensorStateChanged);
+    connect(m_plcStationSensorInterface, &PLCStationSensorInterface::stationAmmunitionLevelChanged, this, &SensorSystem::onStationAmmunitionLevelChanged);
+    connect(m_plcStationSensorInterface, &PLCStationSensorInterface::stationInput1Changed, this, &SensorSystem::onStationInput1Changed);
+    connect(m_plcStationSensorInterface, &PLCStationSensorInterface::stationInput2Changed, this, &SensorSystem::onStationInput2Changed);
+    connect(m_plcStationSensorInterface, &PLCStationSensorInterface::stationInput3Changed, this, &SensorSystem::onStationInput3Changed);
+    connect(m_plcStationSensorInterface, &PLCStationSensorInterface::eoTemperatureChanged, this, &SensorSystem::onEOTemperatureChanged);
+    connect(m_plcStationSensorInterface, &PLCStationSensorInterface::eoPressureChanged, this, &SensorSystem::onEOPressureChanged);
+
+    // m_plcStationSensorInterface is instantiated in the main class!
+    m_plcPanelSensorInterface->connectDevice();
 }
 
 SensorSystem::~SensorSystem(){
@@ -133,17 +159,15 @@ void SensorSystem::setRadarInterface(RadarInterface *radarInterface) {
     }
 }
 
-void SensorSystem::setPLCSensorInterface(PLCSensorInterface *sensorInterface) {
-    if (m_plcSensorInterface) {
+void SensorSystem::setPLCStationSensorInterface(PLCStationSensorInterface *sensorInterface) {
+    if (m_plcStationSensorInterface) {
         // Disconnect previous connections if any
-        disconnect(m_plcSensorInterface, nullptr, this, nullptr);
+        disconnect(m_plcStationSensorInterface, nullptr, this, nullptr);
     }
-    m_plcSensorInterface = sensorInterface;
-    if (m_plcSensorInterface) {
+    m_plcStationSensorInterface = sensorInterface;
+    if (m_plcStationSensorInterface) {
         // Connect signals
-        connect(m_plcSensorInterface, &PLCSensorInterface::proximitySensorActivated, this, &SensorSystem::proximitySensorActivated);
-        connect(m_plcSensorInterface, &PLCSensorInterface::temperatureUpdated, this, &SensorSystem::temperatureUpdated);
-        connect(m_plcSensorInterface, &PLCSensorInterface::pressureUpdated, this, &SensorSystem::pressureUpdated);
+
     }
 }
 
@@ -173,20 +197,16 @@ RadarInterface* SensorSystem::getRadarInterface() const {
     return m_radarInterface;
 }
 
-PLCSensorInterface* SensorSystem::getPLCSensorInterface() const {
-    return m_plcSensorInterface;
+PLCStationSensorInterface* SensorSystem::getPLCStationSensorInterface() const {
+    return m_plcStationSensorInterface;
 }
 
 void SensorSystem::startMonitoringSensors() {
-    if (m_plcSensorInterface) {
-        m_plcSensorInterface->startMonitoring();
-    }
+
 }
 
 void SensorSystem::stopMonitoringSensors() {
-    if (m_plcSensorInterface) {
-        m_plcSensorInterface->stopMonitoring();
-    }
+
 }
 
 // Methods for GYRO
@@ -318,4 +338,134 @@ void SensorSystem::handleRangingDataReceived(quint8 status, quint16 distance, qu
     double distanceInMeters = distance / 100.0 + decimalPlaces / 10000.0;
     m_dataModel->setLRFDistance(distanceInMeters);
 
+}
+
+void SensorSystem::onGunStateChanged(bool state)
+{
+    m_plcPanelSensorInterface->writeData();
+    m_dataModel->setGunEnabled(state);
+}
+
+void SensorSystem::onFireModeStateInputChanged(int mode)
+{
+    FireMode fireMode;
+
+    switch (mode) {
+    case 0:
+        fireMode = FireMode::SingleShot;
+        break;
+    case 1:
+        fireMode = FireMode::ShortBurst;
+        break;
+    case 2:
+        fireMode = FireMode::LongBurst;
+        break;
+    default:
+        // Handle invalid mode value, defaulting to SingleShot
+        fireMode = FireMode::SingleShot;
+        break;
+    }
+
+    m_dataModel->setFireMode(fireMode);
+}
+
+void SensorSystem::onLoadAmmunitionStateChanged(bool state)
+{
+    m_dataModel->setLoadAmmunition(state);
+}
+
+void SensorSystem::onStationStateChanged(bool state)
+{
+    m_dataModel->setStationState(state);
+    m_plcPanelSensorInterface->writeData();
+    if (state) {
+        m_dataModel->setOperationalStateMode(OperationalMode::Surveillance);
+    }
+    else {
+        m_dataModel->setOperationalStateMode(OperationalMode::Idle);
+    }
+}
+
+void SensorSystem::onSpeedSwChanged(int speed)
+{
+    m_dataModel->setSpeedSw(speed);
+}
+
+void SensorSystem::onHomeSwChanged(bool state)
+{
+    m_dataModel->setHomeSw(state);
+}
+
+void SensorSystem::onStabilizationSwChanged(bool state)
+{
+    m_dataModel->setStabilizationSw(state);
+}
+
+void SensorSystem::onAuthorizeSwChanged(bool state)
+{
+    m_dataModel->setAuthorizeSw(state);
+}
+
+void SensorSystem::onCamSwChanged(bool state)
+{
+    m_dataModel->setCamActive(state);
+}
+
+void SensorSystem::onUpSwChanged(bool state)
+{
+    m_dataModel->setUpSw(state);
+}
+
+void SensorSystem::onDownSwChanged(bool state)
+{
+    m_dataModel->setDownSw(state);
+}
+
+void SensorSystem::onMenuValSwChanged(bool state)
+{
+    m_dataModel->setMenuValSw(state);
+}
+
+void SensorSystem::onPanelTemperatureChanged(int temperature)
+{
+    m_dataModel->setPanelTemperature(temperature);
+}
+
+//PLC Station Slots
+
+void SensorSystem::onStationUpperSensorStateChanged(bool state)
+{
+    m_dataModel->setStationUpperSensor(state);
+}
+
+void SensorSystem::onStationLowerSensorStateChanged(bool state)
+{
+    m_dataModel->setStationLowerSensor(state);
+}
+
+void SensorSystem::onStationAmmunitionLevelChanged(bool state)
+{
+    m_dataModel->setStationAmmunitionLevel(state);
+}
+
+void SensorSystem::onStationInput1Changed(bool state)
+{
+    m_dataModel->setStationInput1(state);
+}
+void SensorSystem::onStationInput2Changed(bool state)
+{
+    m_dataModel->setStationInput2(state);
+}
+void SensorSystem::onStationInput3Changed(bool state)
+{
+    m_dataModel->setStationInput3(state);
+}
+
+void SensorSystem::onEOTemperatureChanged(int temperature)
+{
+    m_dataModel->setEOTemperature(temperature);
+}
+void SensorSystem::onEOPressureChanged(int pressure)
+{
+    m_dataModel->setEOPressure(pressure);
 }

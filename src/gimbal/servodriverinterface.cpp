@@ -63,6 +63,7 @@ bool ServoDriverInterface::connectDevice() {
     }
 
     // Connection process is asynchronous; actual connection is confirmed in onStateChanged()
+    qDebug() << "SERVO connected";
     return true;
 }
 

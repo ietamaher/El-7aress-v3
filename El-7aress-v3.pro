@@ -83,7 +83,7 @@ SOURCES += \
     $$PWD/src/comm/communicationsystem.cpp \
     #$$PWD/src/comm/serialportmanager.cpp \
     $$PWD/src/comm/joystickhandler.cpp \
-    $$PWD/src/comm/plcmodbusworker.cpp \
+    $$PWD/src/comm/plcstationdriver.cpp \
     $$PWD/src/comm/modbusinterface.cpp \
     $$PWD/src/gimbal/radartrackingmotionmode.cpp \
     $$PWD/src/gimbal/gimbalcontroller.cpp \
@@ -103,7 +103,8 @@ SOURCES += \
     $$PWD/src/sensor/radarinterface.cpp \
     $$PWD/src/sensor/gyrointerface.cpp \
     $$PWD/src/sensor/lrfinterface.cpp \
-    $$PWD/src/sensor/plcsensorsinterface.cpp \
+    $$PWD/src/sensor/plcstationsensorsinterface.cpp \
+    $$PWD/src/sensor/plcpanelsensorsinterface.cpp \
     $$PWD/src/states/statemanager.cpp \
     $$PWD/src/states/surveillancestate.cpp \
     $$PWD/src/states/idlestate.cpp \
@@ -124,7 +125,7 @@ HEADERS += \
     $$PWD/include/camera/camerapipeline_night.h \
     $$PWD/include/camera/camerasystem.h \
     $$PWD/include/comm/communicationsystem.h \
-    $$PWD/include/comm/plcmodbusworker.h \
+    $$PWD/include/comm/plcstationdriver.h \
     $$PWD/include/camera/dayCamerainterface.h \
     $$PWD/include/states/emergencyoverridestate.h \
     $$PWD/include/states/systemerrorstate.h \
@@ -152,7 +153,8 @@ HEADERS += \
     $$PWD/include/gimbal/patternmotionmode.h \
     $$PWD/include/sensor/sensorsystem.h \
     $$PWD/include/sensor/radarinterface.h \
-    $$PWD/include/sensor/plcsensorsinterface.h \
+    $$PWD/include/sensor/plcstationsensorsinterface.h \
+    $$PWD/include/sensor/plcpanelsensorsinterface.h \
     #$$PWD/include/comm/serialportmanager.h \
     $$PWD/include/states/surveillancestate.h \
     $$PWD/include/gimbal/targettrackingmotionmode.h \

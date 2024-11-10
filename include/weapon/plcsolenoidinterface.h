@@ -4,13 +4,13 @@
 #include <QObject>
 #include <QTimer>
 #include <QSet>
-#include "include/comm/plcmodbusworker.h"
+#include "include/comm/plcstationdriver.h"
 #include "include/datamodel.h"
 
 class PLCSolenoidInterface : public QObject {
     Q_OBJECT
 public:
-    explicit PLCSolenoidInterface(PLCModbusWorker *modbusComm, QObject *parent = nullptr);
+    explicit PLCSolenoidInterface(PLCStationDriver *modbusComm, QObject *parent = nullptr);
 
     void startFiring(int frequency); // Frequency in Hz
     void stopFiring();
@@ -24,7 +24,7 @@ private slots:
     void onErrorOccurred(const QString &message);
 
 private:
-    PLCModbusWorker *m_modbusComm;
+    PLCStationDriver *m_modbusComm;
     QTimer *m_firingTimer;
 
     // Modbus register address for solenoid control

@@ -18,7 +18,7 @@
 #include "../../include/gui/statuspanel.h"
 #include <QFile>
 #include "include/datamodel.h"
-
+#include "include/comm/plcstationdriver.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -37,6 +37,8 @@ public:
     ~MainWindow();
 
 private slots:
+    void onOperationalStateModeChanged(const OperationalMode &mode);
+
     void onJoystickAxisMoved(int axis, int value);
     void onJoystickButtonPressed(int button, bool pressed);
     void onModeChanged(OperationalMode newMode);
@@ -91,6 +93,10 @@ private slots:
 
     void on_stabToggleButton_clicked();
 
+    void on_speedPlusButton_clicked();
+
+    void on_speedMinusButton_clicked();
+
 private:
     Ui::MainWindow *ui;
     DataModel *m_dataModel;
@@ -101,12 +107,12 @@ private:
     WeaponSystem *m_weaponSystem;
     SensorSystem *m_sensorSystem;
 
-    PLCModbusWorker *m_modbusWorker;
+    PLCStationDriver *m_modbusWorker;
     QThread *m_modbusThread;
 
     PLCServoInterface *m_plcServoInterface;
     PLCSolenoidInterface *m_plcSolenoidInterface;
-    PLCSensorInterface *m_plcSensorInterface;
+    PLCStationSensorInterface *m_plcStationSensorInterface;
 
 
 
@@ -119,8 +125,7 @@ private:
     QSet<int> pendingTrackIds;
     bool updatePending = false;
 
-    bool detectionEnabled = false;
-    bool stabilizationEnabled = false;
+
 
     void initializeComponents();
     void connectSignals();
@@ -143,6 +148,11 @@ private:
  void checkJoystickStatus();
      bool m_detectionEnabled;
     bool m_stabilizationEnabled;
+     double m_currentGimbalSpeed;
+     QVector<double> m_speedValues;
+     int m_speedIndex;
+
+     void updateGimbalSpeed();
 };
 
 #endif // MAINWINDOW_H

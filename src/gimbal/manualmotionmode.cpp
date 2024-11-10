@@ -39,12 +39,12 @@ void ManualMotionMode::update(GimbalController* controller) {
 
     if (controller->isStabilizationEnabled()) {
         // Get stabilization adjustments
-        double roll, pitch, yaw;
-        controller->getSensorSystem()->getGyroRates(roll, pitch, yaw);
+        double rollRate, pitchRate, yawRate;
+        controller->getDataModel()->getGyroOrientation(rollRate, pitchRate, yawRate);
 
         // Apply stabilization corrections
-        targetAzimuth -= yaw * STABILIZATION_FACTOR;
-        targetElevation -= pitch * STABILIZATION_FACTOR;
+        targetAzimuth -= rollRate * STABILIZATION_FACTOR;
+        targetElevation -= pitchRate * STABILIZATION_FACTOR;
     }
 
     // Send position command

@@ -8,7 +8,9 @@
 #include "lrfinterface.h"
 #include "gyrointerface.h"
 #include "radarinterface.h"
-#include "plcsensorsinterface.h"
+#include "plcstationsensorsinterface.h"
+#include "plcpanelsensorsinterface.h"
+
 #include "include/datamodel.h"
 
 
@@ -24,13 +26,13 @@ public:
     void setLRFInterface(LRFInterface *lrfInterface);
     void setGyroInterface(GyroInterface *gyroInterface);
     void setRadarInterface(RadarInterface *radarInterface);
-    void setPLCSensorInterface(PLCSensorInterface *sensorInterface);
+    void setPLCStationSensorInterface(PLCStationSensorInterface *sensorInterface);
 
     // Getter methods for interfaces
     LRFInterface* getLRFInterface() const;
     GyroInterface* getGyroInterface() const;
     RadarInterface* getRadarInterface() const;
-    PLCSensorInterface* getPLCSensorInterface() const;
+    PLCStationSensorInterface* getPLCStationSensorInterface() const;
 
     // Other methods remain the same
     //void activateSensors(bool activate);
@@ -71,6 +73,35 @@ public slots:
     void handleRadarConnectionStatusChanged(bool connected);
     void handleGyroConnectionStatusChanged(bool connected);
 
+    // PLC Monitor Digital Input Slots
+    void onGunStateChanged(bool state);
+    void onLoadAmmunitionStateChanged(bool state);
+    void onStationStateChanged(bool state);
+    void onHomeSwChanged(bool state);
+    void onStabilizationSwChanged(bool state);
+    void onAuthorizeSwChanged(bool state);
+    void onCamSwChanged(bool state);
+    void onUpSwChanged(bool state);
+    void onDownSwChanged(bool state);
+    void onMenuValSwChanged(bool state);
+
+    // PLC Monitor Analog Input Slot
+    void onSpeedSwChanged(int speed);
+    void onFireModeStateInputChanged(int mode);
+    void onPanelTemperatureChanged(int temperature);
+
+    // PLC Station Digital Input Slots
+    void onStationUpperSensorStateChanged(bool state);
+    void onStationLowerSensorStateChanged(bool state);
+    void onStationAmmunitionLevelChanged(bool state);
+    void onStationInput1Changed(bool state);
+    void onStationInput2Changed(bool state);
+    void onStationInput3Changed(bool state);
+
+    // PLC Station Analog Input Slot
+    void onEOTemperatureChanged(int temperature);
+    void onEOPressureChanged(int pressure);
+
 signals:
     // Signals to be emitted to MainWindow or other classes
     void errorOccurred(const QString &error);
@@ -97,8 +128,8 @@ private:
 
     GyroInterface *m_gyroInterface;
     RadarInterface *m_radarInterface;
-    PLCSensorInterface *m_plcSensorInterface;
-    //PLCMonitorInterface *m_plcMonitorInterface;
+    PLCStationSensorInterface *m_plcStationSensorInterface;
+    PLCPanelSensorInterface *m_plcPanelSensorInterface;
 
     QThread *m_lrfThread;
 

@@ -2,17 +2,17 @@
 #include <QDebug>
 
 
-PLCSensorInterface::PLCSensorInterface(PLCModbusWorker *modbusComm, QObject *parent)
+PLCStationSensorInterface::PLCStationSensorInterface(PLCStationDriver *modbusComm, QObject *parent)
     : QObject(parent),
     m_modbusComm(modbusComm),
     m_readTimer(new QTimer(this))
 {
     initializeSensorConfigs();
 
-    connect(m_readTimer, &QTimer::timeout, this, &PLCSensorInterface::readSensors);
-    connect(m_modbusComm, &PLCModbusWorker::logMessage, this, &PLCSensorInterface::logMessage);
-    connect(m_modbusComm, &PLCModbusWorker::registersRead, this, &PLCSensorInterface::onRegistersRead);
-    connect(m_modbusComm, &PLCModbusWorker::errorOccurred, this, &PLCSensorInterface::onErrorOccurred);
+    connect(m_readTimer, &QTimer::timeout, this, &PLCStationSensorInterface::readSensors);
+    connect(m_modbusComm, &PLCStationDriver::logMessage, this, &PLCStationSensorInterface::logMessage);
+    connect(m_modbusComm, &PLCStationDriver::registersRead, this, &PLCStationSensorInterface::onRegistersRead);
+    connect(m_modbusComm, &PLCStationDriver::errorOccurred, this, &PLCStationSensorInterface::onErrorOccurred);
 
 
     // Initialize startAddress and totalRegisters based on m_sensorConfigs
@@ -40,19 +40,19 @@ PLCSensorInterface::PLCSensorInterface(PLCModbusWorker *modbusComm, QObject *par
     }
 }
 
-void PLCSensorInterface::startMonitoring(int intervalMs) {
+void PLCStationSensorInterface::startMonitoring(int intervalMs) {
     m_readTimer->start(intervalMs);
     emit logMessage("Started sensor monitoring");
 }
 
-void PLCSensorInterface::stopMonitoring() {
+void PLCStationSensorInterface::stopMonitoring() {
     if (m_readTimer->isActive()) {
         m_readTimer->stop();
         emit logMessage("Stopped sensor monitoring");
     }
 }
 
-void PLCSensorInterface::readSensors() {
+void PLCStationSensorInterface::readSensors() {
     if (m_sensorConfigs.isEmpty()) {
         logError("No sensor configurations available.");
         return;
@@ -63,7 +63,7 @@ void PLCSensorInterface::readSensors() {
     m_modbusComm->readRegisters(serverAddress, m_startAddress, m_totalRegisters);
 }
 
-void PLCSensorInterface::onRegistersRead(int address, const QVector<uint16_t> &values) {
+void PLCStationSensorInterface::onRegistersRead(int address, const QVector<uint16_t> &values) {
     if (address != m_startAddress) {
         // Not the data we requested
         return;
@@ -80,13 +80,13 @@ void PLCSensorInterface::onRegistersRead(int address, const QVector<uint16_t> &v
     }
 }
 
-void PLCSensorInterface::onErrorOccurred(const QString &message) {
+void PLCStationSensorInterface::onErrorOccurred(const QString &message) {
     logError(message);
 }
 
 
 // Initialize Sensor Configurations
-void PLCSensorInterface::initializeSensorConfigs() {
+void PLCStationSensorInterface::initializeSensorConfigs() {
     // Proximity Sensor Configuration
     m_sensorConfigs.append(SensorConfig{
         "ProximitySensor",
@@ -123,7 +123,7 @@ void PLCSensorInterface::initializeSensorConfigs() {
     // Add more sensors as needed
 }
 
-void PLCSensorInterface::logError(const QString &message) {
+void PLCStationSensorInterface::logError(const QString &message) {
     emit logMessage(message);
-   qDebug() << "PLCSensorInterface:" << message;
+   qDebug() << "PLCStationSensorInterface:" << message;
 }

@@ -1,15 +1,15 @@
 #include "include/weapon/plcsolenoidinterface.h"
 #include <QDebug>
 
-PLCSolenoidInterface::PLCSolenoidInterface(PLCModbusWorker *modbusComm, QObject *parent)
+PLCSolenoidInterface::PLCSolenoidInterface(PLCStationDriver *modbusComm, QObject *parent)
     : QObject(parent),
     m_modbusComm(modbusComm),
     m_firingTimer(new QTimer(this))
 {
     connect(m_firingTimer, &QTimer::timeout, this, &PLCSolenoidInterface::triggerSolenoid);
-    connect(m_modbusComm, &PLCModbusWorker::logMessage, this, &PLCSolenoidInterface::logMessage);
-    connect(m_modbusComm, &PLCModbusWorker::writeCompleted, this, &PLCSolenoidInterface::onWriteCompleted);
-    connect(m_modbusComm, &PLCModbusWorker::errorOccurred, this, &PLCSolenoidInterface::onErrorOccurred);
+    connect(m_modbusComm, &PLCStationDriver::logMessage, this, &PLCSolenoidInterface::logMessage);
+    connect(m_modbusComm, &PLCStationDriver::writeCompleted, this, &PLCSolenoidInterface::onWriteCompleted);
+    connect(m_modbusComm, &PLCStationDriver::errorOccurred, this, &PLCSolenoidInterface::onErrorOccurred);
 }
 
 void PLCSolenoidInterface::startFiring(int frequency) {

@@ -9,8 +9,8 @@ GimbalController::GimbalController(DataModel *dataModel, QObject *parent)
     : QObject(parent),
       m_dataModel(dataModel),
       m_plcServoInterface(nullptr),
-      m_azimuthServoDriver(new ServoDriverInterface("azServo", "/dev/pts/5", 115200, 2, this)),
-      m_elevationServoDriver(new ServoDriverInterface("elServo", "/dev/pts/8", 115200, 2, this)),
+      m_azimuthServoDriver(new ServoDriverInterface("azServo", "/dev/pts/4", 115200, 2, this)),
+      m_elevationServoDriver(new ServoDriverInterface("elServo", "/dev/pts/7", 115200, 2, this)),
       m_azimuthPosition(0.0),
       m_elevationPosition(0.0),
       m_enabled(false),
@@ -51,13 +51,14 @@ GimbalController::GimbalController(DataModel *dataModel, QObject *parent)
     connect(m_elevationServoDriver, &ServoDriverInterface::connectionStatusChanged, this, &GimbalController::handleElevationConnectionStatusChanged);
     connect(m_azimuthServoDriver, &ServoDriverInterface::connectionStatusChanged, this, &GimbalController::handleAzimuthConnectionStatusChanged);
 
-
-
-    // Connect log messages
+     // Connect log messages
     connect(m_azimuthServoDriver, &ServoDriverInterface::logMessage, this, &GimbalController::logMessage);
 
     connect(m_elevationServoDriver, &ServoDriverInterface::logMessage, this, &GimbalController::logMessage);
-
+    // Initialize update timer
+    m_updateTimer = new QTimer(this);
+    connect(m_updateTimer, &QTimer::timeout, this, &GimbalController::update);
+    m_updateTimer->start(100);
 }
 
 GimbalController::~GimbalController() {
@@ -69,6 +70,7 @@ void GimbalController::shutdown() {
     if (m_currentMotionMode) {
         m_currentMotionMode->exit(this);
     }
+        m_updateTimer->stop();
 }
 
 double GimbalController::getAzimuthPosition() const {
@@ -158,7 +160,9 @@ void GimbalController::setPLCServoInterface(PLCServoInterface *servoInterface) {
         //connect(m_plcServoInterface, &PLCStationSensorInterface::pressureUpdated, this, &SensorSystem::pressureUpdated);
     }
 }
-
+PLCServoInterface* GimbalController::getPLCServoInterface()const {
+    return m_plcServoInterface;
+}
 
 SensorSystem* GimbalController::getSensorSystem() const {
     return m_sensorSystem;
@@ -169,10 +173,14 @@ void GimbalController::setSensorSystem(SensorSystem* sensorSystem) {
 }
 
 CameraSystem* GimbalController::getCameraSystem() const {
+    qDebug() << "GimbalController::getCameraSystem() called, returning:" << m_cameraSystem;
+
     return m_cameraSystem;
 }
 
 void GimbalController::setCameraSystem(CameraSystem* cameraSystem) {
+    qDebug() << "GimbalController's CameraSystem set to:" << m_cameraSystem;
+
     m_cameraSystem = cameraSystem;
 }
 
@@ -180,7 +188,11 @@ void GimbalController::sendSpeedCommand(double azimuthSpeed, double elevationSpe
     // Implement if needed
 }
 
-
+void GimbalController::handleJoystickInput(int axis, float value) {
+    if (m_currentMotionMode) {
+        m_currentMotionMode->handleJoystickInput(this, axis, value);
+    }
+}
 void GimbalController::sendPositionCommand(double azimuth, double elevation) {
     // Convert positions to pulses or appropriate units
     int azimuthPulse = static_cast<int>(azimuth * /* conversion factor */ 1000); // Adjust as needed
@@ -195,7 +207,7 @@ void GimbalController::sendPositionCommand(double azimuth, double elevation) {
     elevationPulse = abs(elevationPulse);
 
     // Send commands to PLC controller to control PULSE/DIR Drivers
-    m_plcServoInterface->setServoParameters(azimuthPulse, azimuthDirection, elevationPulse, elevationDirection);
+    //m_plcServoInterface->setServoParameters(azimuthPulse, azimuthDirection, elevationPulse, elevationDirection);
 
 }
 void GimbalController::onAzimuthDataUpdated(const QVector<uint16_t> &data) {
@@ -268,3 +280,5 @@ void GimbalController::setTiltSpeed(float speed) {
     m_tiltSpeed = speed;
     // Update the hardware or internal logic to adjust the tilt speed
 }
+
+

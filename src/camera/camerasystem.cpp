@@ -35,6 +35,7 @@ void CameraSystem::initializePipelines() {
         connect(m_cameraPipelineDay, &CameraPipelineDay::newFrameAvailable, this, &CameraSystem::onNewFrameAvailable);
         connect(m_cameraPipelineDay, &CameraPipelineDay::trackedTargetsUpdated, this, &CameraSystem::onTrackedIdsUpdated, Qt::QueuedConnection);
         connect(m_cameraPipelineDay, &CameraPipelineDay::selectedTrackLost, this, &CameraSystem::onSelectedTrackLost);
+        connect(m_cameraPipelineDay, &CameraPipelineDay::targetPositionUpdated, this, &CameraSystem::onTargetPositionUpdated);
     }/* else {
         m_cameraPipelineNight = new CameraPipelineNight(1, this);
         connect(m_cameraPipelineNight, &CameraPipelineNight::newFrameAvailable, this, &CameraSystem::onNewFrameAvailable);
@@ -62,6 +63,7 @@ void CameraSystem::initializeCameraInterfaces() {
         //connect(m_dayCameraInterface, &DayCameraInterface::errorOccurred, this, &CameraSystem::onErrorOccurred);
 
         connect(m_dayCameraInterface, &DayCameraInterface::statusChanged, this, &CameraSystem::onDayCameraInterfaceStatusChanged);
+
     }
     if (m_nightCameraInterface) {
         connect(m_nightCameraInterface, &NightCameraInterface::responseReceived, this, &CameraSystem::onNightInterfaceResponseReceived);
@@ -115,7 +117,10 @@ void CameraSystem::onLensInterfaceStatusChanged(bool isConnected) {
     // Handle reconnection logic if necessary
 }
 
+void CameraSystem::onTargetPositionUpdated(double azimuth, double elevation) {
+    emit targetPositionUpdated(azimuth, elevation);
 
+}
 void CameraSystem::start() {
     if (m_isDayCameraActive && m_cameraPipelineDay) {
         m_cameraPipelineDay->start();

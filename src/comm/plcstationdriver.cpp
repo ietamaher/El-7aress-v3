@@ -80,6 +80,8 @@ void PLCStationDriver::performPeriodicTasks() {
 
     // Read input registers (analog inputs)
     readInputRegisters(serverAddress, ANALOG_INPUTS_START_ADDRESS, ANALOG_INPUTS_COUNT);
+
+    //writeCoil(serverAddress, 0, 1);
 }
 
 void PLCStationDriver::stopCommunication() {
@@ -106,6 +108,7 @@ void PLCStationDriver::stopCommunication() {
 
 void PLCStationDriver::writeRegister(int serverAddress, int registerAddress, uint16_t value) {
     if (!m_modbusDevice) return;
+    QMutexLocker locker(&m_mutex);
 
     QModbusDataUnit writeUnit(QModbusDataUnit::HoldingRegisters, registerAddress, 1);
     writeUnit.setValue(0, value);
@@ -125,6 +128,7 @@ void PLCStationDriver::writeRegister(int serverAddress, int registerAddress, uin
 
 void PLCStationDriver::writeRegisters(int serverAddress, int startAddress, const QVector<uint16_t> &values) {
     if (!m_modbusDevice) return;
+    QMutexLocker locker(&m_mutex);
 
     QModbusDataUnit writeUnit(QModbusDataUnit::HoldingRegisters, startAddress, values.size());
     for (int i = 0; i < values.size(); ++i) {
@@ -145,6 +149,7 @@ void PLCStationDriver::writeRegisters(int serverAddress, int startAddress, const
 
 void PLCStationDriver::readRegisters(int serverAddress, int startAddress, int count) {
     if (!m_modbusDevice) return;
+    QMutexLocker locker(&m_mutex);
 
     QModbusDataUnit readUnit(QModbusDataUnit::HoldingRegisters, startAddress, count);
 
@@ -162,6 +167,7 @@ void PLCStationDriver::readRegisters(int serverAddress, int startAddress, int co
 }
 void PLCStationDriver::readInputRegisters(int serverAddress, int startAddress, int count) {
     if (!m_modbusDevice) return;
+    QMutexLocker locker(&m_mutex);
 
     QModbusDataUnit readUnit(QModbusDataUnit::InputRegisters, startAddress, count);
 
@@ -179,6 +185,7 @@ void PLCStationDriver::readInputRegisters(int serverAddress, int startAddress, i
 
 void PLCStationDriver::readInputBits(int serverAddress, int startAddress, int count) {
     if (!m_modbusDevice) return;
+    QMutexLocker locker(&m_mutex);
 
     QModbusDataUnit readUnit(QModbusDataUnit::DiscreteInputs, startAddress, count);
 
@@ -193,7 +200,88 @@ void PLCStationDriver::readInputBits(int serverAddress, int startAddress, int co
         emit errorOccurred(m_modbusDevice->errorString());
     }
 }
+/*void PLCStationDriver::writeCoil(int serverAddress, int address, bool value) {
+    if (!m_modbusDevice) {
+        logError("Modbus device is not initialized.");
+        emit errorOccurred("Modbus device is not initialized.");
+        return;
+    }
+        QMutexLocker locker(&m_mutex);
 
+    m_digitalOutputs[address] = 1;
+     QVector<quint16> coilValues;
+    for (int i = 0; i < m_digitalOutputs.size() && i < 8; ++i) {
+        coilValues.append(m_digitalOutputs.at(i));
+
+    }
+
+    QModbusDataUnit writeUnit(QModbusDataUnit::Coils, 0, coilValues.size());
+    for (int i = 0; i < coilValues.size(); ++i) {
+        writeUnit.setValue(i, coilValues.at(i));
+    }
+
+    qDebug() << "Master: Writing to coil" << address << "with value" << (value ? "1" : "0");
+
+
+    if (auto *reply = m_modbusDevice->sendWriteRequest(writeUnit, serverAddress)) {
+        if (!reply->isFinished()) {
+            connect(reply, &QModbusReply::finished, this, &PLCStationDriver::onWriteFinished);
+        } else {
+            reply->deleteLater();
+        }
+    } else {
+        logError("Write error: " + m_modbusDevice->errorString());
+        emit errorOccurred(m_modbusDevice->errorString());
+    }
+}*/
+
+void PLCStationDriver::writeCoil(int serverAddress, int address, bool value) {
+    if (!m_modbusDevice || m_modbusDevice->state() != QModbusDevice::ConnectedState)
+        return;
+
+    QMutexLocker locker(&m_mutex);
+    m_digitalOutputs[address] = value;
+    // Prepare 8 digital outputs (coils)
+    QVector<quint16> coilValues;
+    for (int i = 0; i < m_digitalOutputs.size() && i < 8; ++i) {
+        coilValues.append(m_digitalOutputs.at(i));
+
+    }
+
+    QModbusDataUnit writeUnit(QModbusDataUnit::Coils, 0, coilValues.size());
+    for (int i = 0; i < coilValues.size(); ++i) {
+        writeUnit.setValue(i, coilValues.at(i));
+    }
+
+    if (auto *reply = m_modbusDevice->sendWriteRequest(writeUnit, serverAddress)) {
+        if (!reply->isFinished()) {
+            connect(reply, &QModbusReply::finished, this, &PLCStationDriver::onWriteReady);
+        } else {
+            reply->deleteLater();
+        }
+    } else {
+        logError(QString("Write error: %1").arg(m_modbusDevice->errorString()));
+        emit errorOccurred(m_modbusDevice->errorString());
+    }
+}
+void PLCStationDriver::onWriteReady() {
+    auto *reply = qobject_cast<QModbusReply *>(sender());
+    if (!reply)
+        return;
+
+    if (reply->error() != QModbusDevice::NoError) {
+        QString errorMsg = QString("Write response error: %1").arg(reply->errorString());
+        logError(errorMsg);
+        emit errorOccurred(errorMsg);
+        qCritical() << "Master:" << errorMsg;
+    } else {
+        QString successMsg = "Write to PLC completed successfully.";
+        emit logMessage(successMsg);
+        //qDebug() << "Master:" << successMsg;
+    }
+
+    reply->deleteLater();
+}
 
 void PLCStationDriver::onReadReady() {
     auto reply = qobject_cast<QModbusReply *>(sender());
@@ -261,8 +349,7 @@ void PLCStationDriver::onErrorOccurred(QModbusDevice::Error error) {
     if (error == QModbusDevice::NoError || !m_modbusDevice)
         return;
 
-    logError("Modbus error: " + m_modbusDevice->errorString());
-    emit errorOccurred(m_modbusDevice->errorString());
+
 }
 
 void PLCStationDriver::logError(const QString &message) {

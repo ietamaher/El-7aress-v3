@@ -12,7 +12,7 @@ public:
     void handleJoystickInput(GimbalController* controller, int axis, float value) override;
     void update(GimbalController* controller) override;
 
-private slots:
+public slots:
     void onTargetPositionUpdated(double azimuth, double elevation);
 
 private:

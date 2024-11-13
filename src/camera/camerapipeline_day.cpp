@@ -30,6 +30,10 @@ CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QObject *parent)
     manual_bbox.top = 320;
     manual_bbox.width = 100;
     manual_bbox.height = 100;
+
+    connect(m_dataModel, &DataModel::reticleStyleChanged, this, &CameraPipelineDay::onReticleStyleChanged);
+    qDebug() << "CameraSystem instance created:" << this;
+
  }
 
 CameraPipelineDay::~CameraPipelineDay()
@@ -82,7 +86,26 @@ void CameraPipelineDay::stop()
     pipeline = nullptr;
 }
 
+void CameraPipelineDay::onReticleStyleChanged(const QString &style)
+{
+    // Update the reticle rendering parameters based on the new style
+    m_currentReticleStyle = style;
+    // Trigger a re-render if necessary
+}
 
+void CameraPipelineDay::renderReticle(NvDsDisplayMeta *display_meta)
+{
+    // Use m_currentReticleStyle to determine which reticle to draw
+    if (m_currentReticleStyle == "Crosshair") {
+        // Draw crosshair reticle
+    } else if (m_currentReticleStyle == "Dot") {
+        // Draw dot reticle
+    } else if (m_currentReticleStyle == "Circle") {
+        // Draw circle reticle
+    } else {
+        // Draw default reticle
+    }
+}
 
 void CameraPipelineDay::setTracker()
 {
@@ -778,6 +801,50 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
                         display_meta->line_params[0].line_width = 1;
                         display_meta->line_params[0].line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
                         nvds_add_display_meta_to_frame(frame_meta, display_meta);
+
+                        // **Calculate Target Angles Adjusted for Cropping**
+
+                        // Image dimensions after cropping
+                        double croppedImageWidth = frame_meta->source_frame_width; // Should be 960
+                        double croppedImageHeight = frame_meta->source_frame_height; // Should be 720
+
+                        // Image center
+                        double imageCenterX = croppedImageWidth / 2.0;
+                        double imageCenterY = croppedImageHeight / 2.0;
+
+                        // Target center coordinates
+                        double targetX = obj_meta->rect_params.left + obj_meta->rect_params.width / 2.0;
+                        double targetY = obj_meta->rect_params.top + obj_meta->rect_params.height / 2.0;
+
+                        // Offsets from center
+                        double deltaX = targetX - imageCenterX;
+                        double deltaY = imageCenterY - targetY;
+
+                        // Effective FOV calculations
+                        double cameraHorizontalFOV = 90.0; // Replace with your camera's actual HFOV
+                        double originalImageWidth = 1280.0;
+                        double originalImageHeight = originalImageWidth * 9/16;
+                        double effectiveHorizontalFOV = cameraHorizontalFOV * (croppedImageWidth / originalImageWidth);
+                        double anglePerPixelX = effectiveHorizontalFOV / croppedImageWidth;
+
+                        double cameraVerticalFOV = cameraHorizontalFOV * (originalImageHeight / originalImageWidth);
+                        double anglePerPixelY = cameraVerticalFOV / croppedImageHeight;
+
+                        // Calculate target angles
+                        double targetAzimuthOffset = deltaX * anglePerPixelX;
+                        double targetElevationOffset = deltaY * anglePerPixelY;
+
+                        double currentAzimuth = 0; //self->m_dataModel->get;
+                        double currentElevation = 0; //self->m_dataModel->getElevationPosition();
+
+                        double targetAzimuth = currentAzimuth + targetAzimuthOffset;
+                        double targetElevation = currentElevation + targetElevationOffset;
+
+                        // Emit signal to update target position
+                        qDebug() << "Emitting targetPositionUpdated from CameraSystem instance:" << self;
+
+                        emit self->targetPositionUpdated(targetAzimuth, targetElevation);
+
                     }
                     std::vector<int> tracksToRemove;
                     for (const auto &entry : self->activeTracks)
@@ -930,6 +997,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
 
             // **Add Object Meta to Frame**
             nvds_add_obj_meta_to_frame(frame_meta, obj_meta, NULL);
+
             //}
             break;
         }

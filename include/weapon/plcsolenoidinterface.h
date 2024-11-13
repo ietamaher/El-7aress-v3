@@ -12,7 +12,8 @@ class PLCSolenoidInterface : public QObject {
 public:
     explicit PLCSolenoidInterface(PLCStationDriver *modbusComm, QObject *parent = nullptr);
 
-    void startFiring(int frequency); // Frequency in Hz
+    void WriteRegisterData(int slaveId, int address, int mode) ;
+    void startFiring(); // Frequency in Hz
     void stopFiring();
 
 signals:

@@ -65,6 +65,7 @@ signals:
     void dayResponseReceived(const QByteArray &response);
     void nightResponseReceived(const QByteArray &response);
 
+
 private slots:
     void onNewFrameAvailable(uchar4* frame, int width, int height);
     void onSelectedTrackLost(int trackId);
@@ -80,6 +81,7 @@ private slots:
     void onLensResponseReceived(const QString &response);
 
     void onErrorOccurred(const QString &error);
+    void onTargetPositionUpdated(double azimuth, double elevation);
 
 private:
 

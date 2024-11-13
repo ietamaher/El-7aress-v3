@@ -21,32 +21,47 @@ void ManualMotionMode::exit(GimbalController* controller) {
     qDebug() << "Exiting Manual Motion Mode";
 }
 
-void ManualMotionMode::handleJoystickInput(GimbalController* controller, int axis, float value) {
-    // Adjust positions based on joystick input
-    const double sensitivity = 0.1; // Adjust as needed
-
-    if (axis == 0) { // Assuming axis 0 is azimuth
-        m_azimuth += value * sensitivity;
-    } else if (axis == 1) { // Assuming axis 1 is elevation
-        m_elevation += value * sensitivity;
+void ManualMotionMode::handleJoystickInput(GimbalController* controller, int axis, float value)
+{
+    // Store the joystick input values
+    if (axis == 0) { // Azimuth axis
+        m_azimuthInput = value;
+    } else if (axis == 1) { // Elevation axis
+        m_elevationInput = value;
     }
 }
 
-void ManualMotionMode::update(GimbalController* controller) {
-    // Get joystick input adjustments (already handled in handleJoystickInput)
-    double targetAzimuth = m_azimuth;
-    double targetElevation = m_elevation;
+void ManualMotionMode::update(GimbalController* controller)
+{
+    // Define sensitivity or maximum speed
+    const float maxSpeed = 100.0f; // Maximum speed in degrees per second
 
-    if (controller->isStabilizationEnabled()) {
-        // Get stabilization adjustments
-        double rollRate, pitchRate, yawRate;
-        controller->getDataModel()->getGyroOrientation(rollRate, pitchRate, yawRate);
+    // Calculate desired speeds based on joystick input
+    float azimuthSpeed = m_azimuthInput * maxSpeed;
+    float elevationSpeed = m_elevationInput * maxSpeed;
 
-        // Apply stabilization corrections
-        targetAzimuth -= rollRate * STABILIZATION_FACTOR;
-        targetElevation -= pitchRate * STABILIZATION_FACTOR;
+    // Determine directions
+    uint16_t azimuthDirection = (azimuthSpeed >= 0) ? 1 : 0;
+    uint16_t elevationDirection = (elevationSpeed >= 0) ? 1 : 0;
+
+    // Absolute values for speeds
+    uint16_t azimuthSpeedValue = static_cast<uint16_t>(fabs(azimuthSpeed));
+    uint16_t elevationSpeedValue = static_cast<uint16_t>(fabs(elevationSpeed));
+
+    // Send commands via PLCServoInterface
+    if (controller->getPLCServoInterface()) {
+        controller->getPLCServoInterface()->setOperationMode(1); // Manual mode
+        controller->getPLCServoInterface()->setAzimuthSpeed(azimuthSpeedValue);
+        controller->getPLCServoInterface()->setElevationSpeed(elevationSpeedValue);
+        controller->getPLCServoInterface()->setAzimuthDirection(azimuthDirection);
+        controller->getPLCServoInterface()->setElevationDirection(elevationDirection);
+        controller->getPLCServoInterface()->setActualAzimuth(m_azimuth);
+        controller->getPLCServoInterface()->setActualElevation(m_elevation);
+        // Since we're in manual mode, target angles might not be used
+        controller->getPLCServoInterface()->setAzimuthTargetAngle(0);
+        controller->getPLCServoInterface()->setElevationTargetAngle(0);
+
+        // Send parameters to PLC
+        controller->getPLCServoInterface()->sendParameters();
     }
-
-    // Send position command
-    controller->sendPositionCommand(targetAzimuth, targetElevation);
 }

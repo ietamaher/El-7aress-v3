@@ -63,12 +63,25 @@ void WeaponSystem::setPLCSolenoidInterface(PLCSolenoidInterface *solenoidInterfa
     m_plcSolenoidInterface = solenoidInterface;
 }
 
-void WeaponSystem::startFiring(int frequency) {
-    if (m_armed && m_plcSolenoidInterface) {
+
+void WeaponSystem::setFireMode(int slaveId, int address, int mode) {
+    if (m_plcSolenoidInterface) {
+        m_plcSolenoidInterface->WriteRegisterData(slaveId, address, mode);
+    } else {
+        qDebug() << "setFireMode is not set.";
+    }
+
+}
+
+void WeaponSystem::startFiring() {
+    if (m_plcSolenoidInterface) {   //to add m_armed &&
+        m_plcSolenoidInterface->startFiring();
+    }
+    /*if (m_armed && m_plcSolenoidInterface) {
         m_plcSolenoidInterface->startFiring(frequency);
     } else {
        qDebug() << "Weapon is not armed or solenoid interface is not set.";
-    }
+    }*/
 }
 
 void WeaponSystem::stopFiring() {

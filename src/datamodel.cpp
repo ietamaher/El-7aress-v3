@@ -151,7 +151,7 @@ void DataModel::setFireMode(FireMode mode)
     QMutexLocker locker(&m_mutex);
     if (m_fireMode != mode) {
         m_fireMode = mode;
-        emit dataModelUpdated();
+        emit fireModeChanged(mode);
     }
 }
 
@@ -220,28 +220,30 @@ void DataModel::setCamActive(bool state)
 
 void DataModel::setUpSw(bool state)
 {
-    QMutexLocker locker(&m_mutex);
+    //QMutexLocker locker(&m_mutex);
     if (m_upSw != state) {
         m_upSw = state;
-        emit dataModelUpdated();
+        emit upSwChanged(state);
     }
 }
 
+
+
 void DataModel::setDownSw(bool state)
 {
-    QMutexLocker locker(&m_mutex);
+    //QMutexLocker locker(&m_mutex);
     if (m_downSw != state) {
         m_downSw = state;
-        emit dataModelUpdated();
+        emit downSwChanged( state);
     }
 }
 
 void DataModel::setMenuValSw(bool state)
 {
-    QMutexLocker locker(&m_mutex);
+    //QMutexLocker locker(&m_mutex);
     if (m_menuValSw != state) {
         m_menuValSw = state;
-        emit dataModelUpdated();
+        emit menuValSwChanged( state);
     }
 }
 
@@ -320,7 +322,13 @@ void DataModel::setEOPressure(int pressure)
 }
 
 
-
+void DataModel::setReticleStyle(const QString &style) {
+    QMutexLocker locker(&m_mutex);
+    if (m_reticleStyle != style) {
+        m_reticleStyle = style;
+        emit reticleStyleChanged(style);
+    }
+}
 
 
 /* GETTERS */
@@ -507,4 +515,10 @@ int DataModel::getEOTemperature()
 int DataModel::getEOPressure()
 {
     return m_stationPressure;
+}
+
+
+QString DataModel::getReticleStyle() {
+    //QMutexLocker locker(&m_mutex);
+    return m_reticleStyle;
 }

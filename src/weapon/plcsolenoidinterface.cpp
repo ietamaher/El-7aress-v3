@@ -12,22 +12,20 @@ PLCSolenoidInterface::PLCSolenoidInterface(PLCStationDriver *modbusComm, QObject
     connect(m_modbusComm, &PLCStationDriver::errorOccurred, this, &PLCSolenoidInterface::onErrorOccurred);
 }
 
-void PLCSolenoidInterface::startFiring(int frequency) {
-    if (frequency <= 0) {
-        logError("Invalid firing frequency");
-        return;
-    }
 
-    int interval = 1000 / frequency; // Calculate interval in milliseconds
+void PLCSolenoidInterface::WriteRegisterData(int slaveId, int address, int mode){
+    m_modbusComm->writeRegister(slaveId, address, mode);
+}
+void PLCSolenoidInterface::startFiring() {
+    m_modbusComm->writeCoil(2, 0, true);
+
+    /*int interval = 1000 / frequency; // Calculate interval in milliseconds
     m_firingTimer->start(interval);
-    emit logMessage(QString("Started firing at %1 Hz").arg(frequency));
+    emit logMessage(QString("Started firing at %1 Hz").arg(frequency));*/
 }
 
 void PLCSolenoidInterface::stopFiring() {
-    if (m_firingTimer->isActive()) {
-        m_firingTimer->stop();
-        emit logMessage("Stopped firing");
-    }
+    m_modbusComm->writeCoil(2, 0, false);
 }
 
 void PLCSolenoidInterface::triggerSolenoid() {

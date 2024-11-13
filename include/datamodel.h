@@ -65,6 +65,7 @@ public slots:
     void setEOTemperature(int temperature);
     void setEOPressure(int pressure);
 
+    void setReticleStyle(const QString &style);
 
 
     // Getters
@@ -113,11 +114,18 @@ public:
     int getEOTemperature();
     int getEOPressure();
 
-
+    QString getReticleStyle();
 signals:
     // Optional: Signals to notify changes
     void dataModelUpdated();
     void operationalStateModeChange(const OperationalMode &mode);
+    void upSwChanged(bool state);
+    void downSwChanged(bool state);
+    void menuValSwChanged(bool state);
+
+    void reticleStyleChanged(const QString &style);
+    void fireModeChanged(FireMode mode);
+
 private:
     // Data members
     OperationalMode m_operationalStateMode;
@@ -161,6 +169,8 @@ private:
     bool m_stationInput3;
     int m_stationTemperature;
     int m_stationPressure;
+
+    QString m_reticleStyle;
 
     QMutex m_mutex; // Protects data members
 

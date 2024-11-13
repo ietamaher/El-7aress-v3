@@ -39,6 +39,7 @@ public:
     SensorSystem* getSensorSystem() const;
     void setSensorSystem(SensorSystem* sensorSystem);
     CameraSystem* getCameraSystem() const;
+    PLCServoInterface* getPLCServoInterface()const;
     void setCameraSystem(CameraSystem* cameraSystem);
     void setPLCServoInterface(PLCServoInterface *servoInterface);
 
@@ -68,7 +69,8 @@ public:
     // Accessors for current positions
     double getAzimuthPosition() const;
     double getElevationPosition() const;
-
+    void setAzimuthPosition(double azimuth);
+    void setElevationPosition(double elevation);
     DataModel* getDataModel() const { return m_dataModel; }
 
 public slots:
@@ -116,10 +118,11 @@ private:
     double m_azimuth;
     double m_elevation;
     DataModel *m_dataModel;
-
+    double m_targetAzimuth;
+    double m_targetElevation;
     float m_panSpeed;
     float m_tiltSpeed;
-
+ QTimer *m_updateTimer;
     // Feedback update method
     void readFeedback();
 };

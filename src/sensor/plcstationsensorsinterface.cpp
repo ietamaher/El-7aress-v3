@@ -19,9 +19,9 @@ void PLCStationSensorInterface::onInputBitsRead(int address, const QVector<uint8
      int upperSensorIndex = 0;
     int lowerSensorIndex = 1;
     int ammunitionLevelIndex = 2;
-    int upSwIndex = 3;
-    int downSwIndex = 4;
-    int menuValSwIndex = 5;
+    int input1Index = 3;
+    int input2Index = 4;
+    int input3SwIndex = 5;
 
     if (upperSensorIndex < bits.size()) {
         bool state = bits[upperSensorIndex];
@@ -35,16 +35,16 @@ void PLCStationSensorInterface::onInputBitsRead(int address, const QVector<uint8
         bool state = bits[ammunitionLevelIndex];
         emit stationAmmunitionLevelChanged(state);
     }
-    if (upSwIndex < bits.size()) {
-        bool state = bits[upSwIndex];
+    if (input1Index < bits.size()) {
+        bool state = bits[input1Index];
         emit stationInput1Changed(state);
     }
-    if (downSwIndex < bits.size()) {
-        bool state = bits[downSwIndex];
+    if (input2Index < bits.size()) {
+        bool state = bits[input2Index];
         emit stationInput2Changed(state);
     }
-    if (menuValSwIndex < bits.size()) {
-        bool state = bits[menuValSwIndex];
+    if (input3SwIndex < bits.size()) {
+        bool state = bits[input3SwIndex];
         emit stationInput3Changed(state);
     }
 
@@ -64,6 +64,7 @@ void PLCStationSensorInterface::onInputRegistersRead(int address, const QVector<
         double pressure = values[eoPressurereIndex] / 10.0; // Adjust scaling as needed
         emit eoPressureChanged(pressure);
     }}
+
 
 void PLCStationSensorInterface::onErrorOccurred(const QString &message) {
     logError(message);

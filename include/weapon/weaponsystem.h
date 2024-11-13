@@ -12,6 +12,9 @@ public:
     explicit WeaponSystem(DataModel *dataModel, QObject *parent = nullptr);
     ~WeaponSystem();
 
+
+    void setFireMode(int slaveId, int address, int mode);
+
     void arm(bool arm);
     void prepareToFire();
     void fire();
@@ -22,7 +25,7 @@ public:
     ServoActuatorInterface* getServoActuatorInterface() const;
     void setPLCSolenoidInterface(PLCSolenoidInterface *solenoidInterface);
 
-    void startFiring(int frequency);
+    void startFiring();
     void stopFiring();
 
 public slots:

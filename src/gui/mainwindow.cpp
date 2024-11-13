@@ -87,12 +87,14 @@ void MainWindow::initializeComponents() {
     m_gimbalController = m_stateManager->getGimbalController();
     m_weaponSystem = m_stateManager->getWeaponSystem();
     m_sensorSystem = m_stateManager->getSensorSystem();
+    qDebug() << "CameraSystem instance in MainWindow:" << m_cameraSystem;
 
+    m_gimbalController->setCameraSystem(m_cameraSystem);
 
     m_joystickHandler = new JoystickHandler("/dev/input/js0", this);
 
     // Create the shared PLC ModbusCommunication instance
-    m_modbusWorker = new PLCStationDriver("/dev/pts/11", 115200, this);
+    m_modbusWorker = new PLCStationDriver("/dev/pts/9", 115200, this);
     // Create interfaces using the shared ModbusCommunication instance
     m_plcServoInterface = new PLCServoInterface(m_modbusWorker, this);
     m_plcSolenoidInterface = new PLCSolenoidInterface(m_modbusWorker, this);
@@ -107,9 +109,6 @@ void MainWindow::initializeComponents() {
 
     // Start monitoring sensors
     m_sensorSystem->startMonitoringSensors();
-
-    // Arm weapon and start firing at 10 Hz
-    m_weaponSystem->startFiring(10);
 
 
     /*m_stateManager->setSensorSystem(m_sensorSystem);
@@ -143,7 +142,7 @@ void MainWindow::initializeComponents() {
 
     statusTimer = new QTimer(this);
     connect(statusTimer, &QTimer::timeout, this, &MainWindow::checkSystemStatus);
-    //statusTimer->start(1000); // Check every second
+    statusTimer->start(1000); // Check every second
     ui->lblGimbalSpeed->setText(QString("%1%").arg(m_speedValues[m_speedIndex]));
 
 
@@ -152,6 +151,11 @@ void MainWindow::initializeComponents() {
 void MainWindow::connectSignals() {
 
     connect(m_dataModel, &DataModel::operationalStateModeChange, this, &MainWindow::onOperationalStateModeChanged);
+    // Connect switch signals to slots
+    connect(m_dataModel, &DataModel::upSwChanged, this, &MainWindow::onUpSwChanged);
+    connect(m_dataModel, &DataModel::downSwChanged, this, &MainWindow::onDownSwChanged);
+    connect(m_dataModel, &DataModel::menuValSwChanged, this, &MainWindow::onMenuValSwChanged);
+    connect(m_dataModel, &DataModel::fireModeChanged, this, &MainWindow::onFireModeChanged);
 
     connect(m_joystickHandler, &JoystickHandler::axisMoved, this, &MainWindow::onJoystickAxisMoved);
     connect(m_joystickHandler, &JoystickHandler::buttonPressed, this, &MainWindow::onJoystickButtonPressed);
@@ -203,7 +207,15 @@ void MainWindow::connectSignals() {
      connect(m_gimbalController, &GimbalController::azimuthConnectionStatusChanged, this, &MainWindow::onAZStepperMotorStatusChanged);
      connect(m_gimbalController, &GimbalController::elevationConnectionStatusChanged, this, &MainWindow::onELStepperMotorStatusChanged);
      connect(m_weaponSystem, &WeaponSystem::actuatorStatusChanged, this, &MainWindow::onActuatorStatusChanged);
- 
+     // Connect sliders to slots
+     // Connect sliders to slots
+     connect(ui->elevationSlider, &QSlider::valueChanged, this, &MainWindow::onElevationSliderValueChanged);
+     connect(ui->azimuthSlider, &QSlider::valueChanged, this, &MainWindow::onAzimuthSliderValueChanged);
+
+     // Update labels initially
+     ui->elevationValueLabel->setText(QString::number(ui->elevationSlider->value() / 1000.0));
+     ui->azimuthValueLabel->setText(QString::number(ui->azimuthSlider->value() / 1000.0));
+
 }
 
 void MainWindow::startThread() {
@@ -228,6 +240,14 @@ bool MainWindow::isJoystickConnected()
 
 void MainWindow::checkSystemStatus()
 {
+    if (m_previousfirestate){
+        m_weaponSystem->startFiring();
+        m_previousfirestate = false;
+    }else{
+        m_weaponSystem->stopFiring();
+        m_previousfirestate = true;
+    }
+
     //checkCameraStatus();
     //checkJoystickStatus();
 }
@@ -373,10 +393,269 @@ void MainWindow::onJoystickButtonPressed(int button, bool pressed) {
     }
 }
 
+
+void MainWindow::onElevationSliderValueChanged(int value)
+{
+    // Convert slider value to joystick input (-1.0 to 1.0)
+    float joystickValue = value / 1000.0f;
+
+    // Update label
+    ui->elevationValueLabel->setText(QString::number(joystickValue));
+
+    // Pass the value to the GimbalController
+    m_gimbalController->handleJoystickInput(1, joystickValue); // Axis 1 for elevation
+}
+
+void MainWindow::onAzimuthSliderValueChanged(int value)
+{
+    float joystickValue = value / 1000.0f;
+
+    ui->azimuthValueLabel->setText(QString::number(joystickValue));
+
+    m_gimbalController->handleJoystickInput(0, joystickValue); // Axis 0 for azimuth
+}
+
 void MainWindow::onModeChanged(OperationalMode newMode) {
     qDebug() << "Operational Mode changed to" << static_cast<int>(newMode);
     // Update UI or perform other actions
 }
+void MainWindow::onFireModeChanged(FireMode mode){
+
+    quint16 uintMode;
+    switch (mode) {
+    case FireMode::SingleShot:
+        uintMode = 0;
+        break;
+    case FireMode::ShortBurst:
+        uintMode = 1;
+        break;
+    case FireMode::LongBurst:
+        uintMode = 2;
+        break;
+    default:
+        uintMode = 0;
+        break;
+    }
+    m_weaponSystem->setFireMode(2, 9, uintMode);
+
+}
+
+
+void MainWindow::on_FireButton_pressed()
+{
+    m_weaponSystem->startFiring();
+}
+
+
+void MainWindow::on_FireButton_released()
+{
+    m_weaponSystem->stopFiring();
+}
+void MainWindow::onUpSwChanged(bool state)
+{
+    if (state) {
+        if (m_reticleMenuActive && m_reticleMenuWidget) {
+            m_reticleMenuWidget->moveSelectionUp();
+        } else if (m_menuActive && m_menuWidget) {
+            m_menuWidget->moveSelectionUp();
+        } else if (m_stateManager->currentMode() == OperationalMode::Tracking) {
+            // Move selection up
+            int currentRow = ui->trackIdListWidget->currentRow();
+            if (currentRow > 0) {
+                ui->trackIdListWidget->setCurrentRow(currentRow - 1);
+            }
+        }
+        // Other cases...
+    }
+}
+
+void MainWindow::onDownSwChanged(bool state)
+{
+    if (state) {
+        if (m_reticleMenuActive && m_reticleMenuWidget) {
+            m_reticleMenuWidget->moveSelectionDown();
+        } else if (m_menuActive && m_menuWidget) {
+            m_menuWidget->moveSelectionDown();
+        } else if (m_stateManager->currentMode() == OperationalMode::Tracking) {
+            // Move selection down
+            int currentRow = ui->trackIdListWidget->currentRow();
+            if (currentRow < ui->trackIdListWidget->count() - 1) {
+                ui->trackIdListWidget->setCurrentRow(currentRow + 1);
+            }
+        }
+        // Other cases...
+    }
+}
+
+void MainWindow::onMenuValSwChanged(bool state)
+{
+    if (state) {
+
+
+
+        if (m_systemStatusActive && m_systemStatusWidget) {
+            m_systemStatusWidget->selectCurrentItem();
+        } else
+        if (m_reticleMenuActive && m_reticleMenuWidget) {
+            m_reticleMenuWidget->selectCurrentItem();
+        } else if (m_menuActive && m_menuWidget) {
+            m_menuWidget->selectCurrentItem();
+        } else if (m_stateManager->currentMode() == OperationalMode::Idle) {
+            showIdleMenu();
+        } else if (m_stateManager->currentMode() == OperationalMode::Tracking) {
+            // Select the current track ID
+            QListWidgetItem* item = ui->trackIdListWidget->currentItem();
+            if (item) {
+                int trackId = item->data(Qt::UserRole).toInt();
+                m_cameraSystem->setSelectedTrackId(trackId);
+                QMessageBox::information(this, "Track Selected", QString("Tracking object ID %1.").arg(trackId));
+            }
+        }
+        // Handle other state modes...
+    }
+    // Handle other state modes below...
+}
+
+void MainWindow::showIdleMenu()
+{
+    if (m_menuActive) return;
+
+    m_menuActive = true;
+    QStringList menuOptions;
+    menuOptions << "System Status"
+                << "Personalize Reticle"
+                << "Adjust Brightness"
+                << "Configure Settings"
+                << "View Logs"
+                << "Software Updates"
+                << "Diagnostics"
+                << "Help/About"
+                << "Return ..."; // Add Return option
+
+    m_menuWidget = new CustomMenuWidget(menuOptions, this);
+    connect(m_menuWidget, &CustomMenuWidget::optionSelected, this, &MainWindow::handleMenuOptionSelected);
+    connect(m_menuWidget, &CustomMenuWidget::menuClosed, this, &MainWindow::handleMenuClosed);
+    m_menuWidget->show();
+}
+
+
+void MainWindow::handleMenuOptionSelected(const QString &option)
+{
+    if (option == "Return ...") {
+        // Close the menu
+        if (m_menuWidget) {
+            m_menuWidget->close();
+        }
+    } else if (option == "System Status") {
+        showSystemStatus();
+    } else if (option == "Personalize Reticle") {
+        personalizeReticle();
+    } else if (option == "Personalize Colors") {
+        adjustBrightness();
+    } else if (option == "Configure Settings") {
+        configureSettings();
+    } else if (option == "View Logs") {
+        viewLogs();
+    } else if (option == "Help/About") {
+        showHelpAbout();
+    }
+}
+
+
+void MainWindow::handleMenuClosed() {
+    m_menuActive = false;
+    m_menuWidget = nullptr;
+}
+
+void MainWindow::showSystemStatus() {
+    if (m_systemStatusActive) return;
+
+    m_systemStatusActive = true;
+    QStringList systemStatus = {"Return ...", "All systems operational."};
+    m_systemStatusWidget = new CustomMenuWidget(systemStatus, this);
+
+    connect(m_systemStatusWidget, &CustomMenuWidget::optionSelected, this, [this](const QString &option) {
+        if (option == "Return ...") {
+            m_systemStatusWidget->close();
+            showIdleMenu();
+        }
+    });
+    connect(m_systemStatusWidget, &CustomMenuWidget::menuClosed, this, [this]() {
+        m_systemStatusActive = false;
+        m_systemStatusWidget = nullptr;
+    });
+    m_systemStatusWidget->show();
+
+ }
+
+void MainWindow::personalizeReticle()
+{
+    if (m_reticleMenuActive) return;
+
+    m_reticleMenuActive = true;
+    QStringList reticleOptions = {"Default", "Crosshair", "Dot", "Circle", "Return ..."};
+    m_reticleMenuWidget = new CustomMenuWidget(reticleOptions, this);
+
+    // Update OSD as user navigates
+    connect(m_reticleMenuWidget, &CustomMenuWidget::currentItemChanged, this, [this](const QString &currentItem) {
+        if (currentItem != "Return ...") {
+            m_dataModel->setReticleStyle(currentItem);
+        }
+    });
+
+    connect(m_reticleMenuWidget, &CustomMenuWidget::optionSelected, this, [this](const QString &option) {
+        if (option == "Return ...") {
+            m_reticleMenuWidget->close();
+            showIdleMenu();
+        } else {
+            m_dataModel->setReticleStyle(option);
+            QMessageBox::information(this, "Reticle Selected", QString("Reticle changed to %1.").arg(option));
+            m_reticleMenuWidget->close();
+            showIdleMenu();
+
+        }
+    });
+
+    connect(m_reticleMenuWidget, &CustomMenuWidget::menuClosed, this, [this]() {
+        m_reticleMenuActive = false;
+        m_reticleMenuWidget = nullptr;
+    });
+
+    m_reticleMenuWidget->show();
+}
+
+void MainWindow::adjustBrightness() {
+    // Implement brightness adjustment
+    // Use UP/DOWN to increase/decrease brightness
+    // For simplicity, here's a placeholder
+    QMessageBox::information(this, "Adjust Brightness", "Brightness adjustment not implemented yet.");
+}
+
+void MainWindow::configureSettings() {
+    // Implement settings configuration menu
+    QMessageBox::information(this, "Configure Settings", "Settings configuration not implemented yet.");
+}
+
+void MainWindow::viewLogs() {
+    // Display logs
+    QMessageBox::information(this, "View Logs", "No logs available.");
+}
+
+void MainWindow::softwareUpdates() {
+    // Implement software updates logic
+    QMessageBox::information(this, "Software Updates", "Software is up to date.");
+}
+
+void MainWindow::runDiagnostics() {
+    // Implement diagnostics
+    QMessageBox::information(this, "Diagnostics", "Diagnostics completed successfully.");
+}
+
+void MainWindow::showHelpAbout() {
+    QMessageBox::information(this, "Help/About", "Application Version 1.0\nDeveloped by Your Company.");
+}
+
+
 
 void MainWindow::emergencyStop() {
     m_manualGimbalControlEnabled = false;
@@ -1011,3 +1290,5 @@ void MainWindow::updateGimbalSpeed()
         m_stateManager->getGimbalController()->setTiltSpeed(speed);
     }
 }
+
+

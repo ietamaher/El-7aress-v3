@@ -14,11 +14,14 @@
 
 #include <QTimer>
 #include <QListWidget>
+#include <QInputDialog>
 
 #include "../../include/gui/statuspanel.h"
 #include <QFile>
 #include "include/datamodel.h"
 #include "include/comm/plcstationdriver.h"
+#include "include/gui/custommenudialog.h"
+
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -42,7 +45,7 @@ private slots:
     void onJoystickAxisMoved(int axis, int value);
     void onJoystickButtonPressed(int button, bool pressed);
     void onModeChanged(OperationalMode newMode);
-
+    void onFireModeChanged(FireMode mode);
     void onTrackIdSelected(QListWidgetItem* current, QListWidgetItem* previous);
     //void onSelectedTrackLost(int trackId);
 
@@ -97,6 +100,27 @@ private slots:
 
     void on_speedMinusButton_clicked();
 
+    void onUpSwChanged(bool state);
+    void onDownSwChanged(bool state);
+    void onMenuValSwChanged(bool state);
+
+    void showIdleMenu();
+    void handleMenuClosed() ;
+    void showSystemStatus();
+    void personalizeReticle();
+    void adjustBrightness() ;
+    void configureSettings() ;
+    void viewLogs() ;
+    void softwareUpdates();
+    void runDiagnostics() ;
+    void showHelpAbout();
+    void handleMenuOptionSelected(const QString &option);
+    void on_FireButton_pressed();
+
+    void on_FireButton_released();
+
+    void onElevationSliderValueChanged(int value);
+    void onAzimuthSliderValueChanged(int value);
 private:
     Ui::MainWindow *ui;
     DataModel *m_dataModel;
@@ -114,7 +138,23 @@ private:
     PLCSolenoidInterface *m_plcSolenoidInterface;
     PLCStationSensorInterface *m_plcStationSensorInterface;
 
+    CustomMenuWidget *m_menuWidget = nullptr;
+    bool m_menuActive = false;
 
+    CustomMenuWidget *m_reticleMenuWidget = nullptr;
+    bool m_reticleMenuActive = false;
+
+    CustomMenuWidget *m_systemStatusWidget = nullptr;
+    bool m_systemStatusActive = false;
+
+    CustomMenuWidget *m_colorWidget = nullptr;
+    bool m_colorMenuActive = false;
+
+    CustomMenuWidget *m_settingsMenuWidget = nullptr;
+    bool m_settingsMenuActive = false;
+
+    CustomMenuWidget *m_aboutWidget = nullptr;
+    bool m_aboutActive = false;
 
     VideoGLWidget_gl *m_videoWidget;
     QMap<int, bool> m_buttonStates;
@@ -130,6 +170,7 @@ private:
     void initializeComponents();
     void connectSignals();
     void startThread();
+
 
     // Helper functions
     void emergencyStop();
@@ -151,7 +192,7 @@ private:
      double m_currentGimbalSpeed;
      QVector<double> m_speedValues;
      int m_speedIndex;
-
+     bool m_previousfirestate = false;
      void updateGimbalSpeed();
 };
 

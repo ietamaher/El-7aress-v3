@@ -109,6 +109,8 @@ signals:
     void trackedTargetsUpdated(const QSet<int> &trackIds);
     void trackingResult(QRect updatedBoundingBox);
     void selectedTrackLost(int trackId);
+    void targetPositionUpdated(double targetAzimuth, double targetElevation);
+
 
 public slots:
     //void setSelectedTrackId(int trackId);
@@ -158,6 +160,9 @@ private:
 
     DataModel *m_dataModel;
 
+    QString m_currentReticleStyle;
+    void onReticleStyleChanged(const QString &style);
+    void renderReticle(NvDsDisplayMeta *display_meta);
 };
 
 #endif // CAMERA_PIPELINE_DAY_H

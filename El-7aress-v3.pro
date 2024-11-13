@@ -116,7 +116,9 @@ SOURCES += \
     $$PWD/src/weapon/servoactuatorinterface.cpp \
     $$PWD/src/weapon/plcsolenoidinterface.cpp \
     $$PWD/src/gui/statuspanel.cpp \
-    $$PWD/src/states/operationalmode.cpp
+    $$PWD/src/states/operationalmode.cpp \
+    $$PWD/src/gui/custommenudialog.cpp \
+    $$PWD/src/sensor/plcremotestationsensorsinterface.cpp
 
 
 
@@ -165,7 +167,9 @@ HEADERS += \
     $$PWD/include/weapon/plcsolenoidinterface.h\
     $$PWD/include/gui/statuspanel.h \
     $$PWD/include/gimbal/motionmodetype.h\
-    $$PWD/include/datamodel.h
+    $$PWD/include/datamodel.h \
+    $$PWD/include/gui/custommenudialog.h \
+    $$PWD/include/sensor/plcremotestationsensorsinterface.h
 
 
 

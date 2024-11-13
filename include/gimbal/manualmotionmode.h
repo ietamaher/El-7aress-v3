@@ -16,9 +16,13 @@ public:
     void handleJoystickInput(GimbalController* controller, int axis, float value) override;
     void update(GimbalController* controller) override;
 
+
 private:
     double m_azimuth;
     double m_elevation;
+
+    float m_azimuthInput;
+    float m_elevationInput;
 };
 
 #endif // MANUALMOTIONMODE_H

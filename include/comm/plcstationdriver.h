@@ -24,6 +24,7 @@ public:
     void readRegisters(int serverAddress, int startAddress, int count);
     void readInputBits(int serverAddress, int startAddress, int count);
     void readInputRegisters(int serverAddress, int startAddress, int count);
+    void writeCoil(int serverAddress, int address, bool value);
 
 
 signals:
@@ -44,6 +45,7 @@ private slots:
     // Response handlers
     void onReadReady();
     void onWriteFinished();
+    void onWriteReady();
 
 private:
     void logError(const QString &message);
@@ -54,6 +56,7 @@ private:
     int m_baudRate;
     bool m_running;
     QMutex m_mutex;
+    QVector<bool> m_digitalOutputs = { false, false, false, false, false, false, false, false };
 
     // Constants for input addresses and counts
     static constexpr int DIGITAL_INPUTS_START_ADDRESS = 0;

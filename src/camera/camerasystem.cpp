@@ -33,6 +33,7 @@ void CameraSystem::initializePipelines() {
     if (m_isDayCameraActive) {
         m_cameraPipelineDay = new CameraPipelineDay(m_dataModel, this);
         connect(m_cameraPipelineDay, &CameraPipelineDay::newFrameAvailable, this, &CameraSystem::onNewFrameAvailable);
+
         connect(m_cameraPipelineDay, &CameraPipelineDay::trackedTargetsUpdated, this, &CameraSystem::onTrackedIdsUpdated, Qt::QueuedConnection);
         connect(m_cameraPipelineDay, &CameraPipelineDay::selectedTrackLost, this, &CameraSystem::onSelectedTrackLost);
         connect(m_cameraPipelineDay, &CameraPipelineDay::targetPositionUpdated, this, &CameraSystem::onTargetPositionUpdated);
@@ -178,12 +179,11 @@ void CameraSystem::setDisplayWidget(VideoGLWidget_gl *widget) {
     m_displayWidget = widget;
 }
 
-void CameraSystem::onNewFrameAvailable(uchar4* frame, int width, int height) {
+void CameraSystem::onNewFrameAvailable(const QByteArray &frameData, int width, int height) {
     if (m_displayWidget) {
-        m_displayWidget->pushFrame(frame, width, height);
+        m_displayWidget->pushFrame(frameData, width, height);
     }
 }
-
 
 
 void CameraSystem::zoomIn() {

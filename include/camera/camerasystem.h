@@ -50,7 +50,9 @@ public:
 signals:
     void errorOccurred(const QString &error);
 
-    void newFrameAvailable(uchar4* frame, int width, int height);
+    //void newFrameAvailable(uchar4* frame, int width, int height);
+    void newFrameAvailable(const QByteArray &frameData, int width, int height);
+
     void selectedTrackLost(int trackId);
     void trackedIdsUpdated(const QSet<int>& ids);
 
@@ -67,7 +69,9 @@ signals:
 
 
 private slots:
-    void onNewFrameAvailable(uchar4* frame, int width, int height);
+    //void onNewFrameAvailable(uchar4* frame, int width, int height);
+    void onNewFrameAvailable(const QByteArray &frameData, int width, int height);
+
     void onSelectedTrackLost(int trackId);
     void onTrackedIdsUpdated(const QSet<int>& trackIds);
 

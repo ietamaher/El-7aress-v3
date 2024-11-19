@@ -66,9 +66,13 @@ L#IBS += -L/usr/lib/aarch64-linux-gnu/tegra -lnvbufsurface -lnvbufsurftransform
 #INCLUDEPATH += /usr/local/include/jetson-utils
 
 
+LIBS += `pkg-config --libs gstreamer-gl-1.0`
+INCLUDEPATH += `pkg-config --cflags gstreamer-gl-1.0`
+
+
 LIBS += -lmodbus # -lboson -lFSLP
 # Library paths and libraries
-LIBS += -L/usr/local/lib #-lopencv_core -lopencv_imgcodecs -lopencv_highgui -lopencv_imgproc
+LIBS += -L/usr/local/lib
 
 # GStreamer and plugins libraries
 LIBS += -lgstreamer-1.0 -lgstapp-1.0 -lgstbase-1.0 -lgobject-2.0 -lglib-2.0
@@ -80,11 +84,11 @@ SOURCES += \
     $$PWD/src/camera/lensinterface.cpp \
     $$PWD/src/camera/dayCamerainterface.cpp \
     $$PWD/src/camera/nightcamerainterface.cpp \
-    $$PWD/src/comm/communicationsystem.cpp \
+    #$$PWD/src/comm/communicationsystem.cpp \
     #$$PWD/src/comm/serialportmanager.cpp \
     $$PWD/src/comm/joystickhandler.cpp \
     $$PWD/src/comm/plcstationdriver.cpp \
-    $$PWD/src/comm/modbusinterface.cpp \
+    #$$PWD/src/comm/modbusinterface.cpp \
     $$PWD/src/gimbal/radartrackingmotionmode.cpp \
     $$PWD/src/gimbal/gimbalcontroller.cpp \
     #$$PWD/src/gimbal/gimbalmotordriver.cpp \
@@ -126,7 +130,7 @@ HEADERS += \
     $$PWD/include/camera/camerapipeline_day.h \
     $$PWD/include/camera/camerapipeline_night.h \
     $$PWD/include/camera/camerasystem.h \
-    $$PWD/include/comm/communicationsystem.h \
+    #$$PWD/include/comm/communicationsystem.h \
     $$PWD/include/comm/plcstationdriver.h \
     $$PWD/include/camera/dayCamerainterface.h \
     $$PWD/include/states/emergencyoverridestate.h \
@@ -147,7 +151,7 @@ HEADERS += \
     $$PWD/include/sensor/lrfinterface.h \
     $$PWD/include/gui/mainwindow.h \
     $$PWD/include/gimbal/manualmotionmode.h \
-    $$PWD/include/comm/modbusinterface.h \
+    #$$PWD/include/comm/modbusinterface.h \
     $$PWD/include/states/statemanager.h \
     $$PWD/include/camera/nightcamerainterface.h \
     $$PWD/include/states/operationalmode.h \
@@ -176,8 +180,6 @@ HEADERS += \
 FORMS += \
     mainwindow.ui
 
-
-
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
@@ -189,3 +191,5 @@ DISTFILES += \
 
 RESOURCES += \
     icons.qrc
+
+

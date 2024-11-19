@@ -21,7 +21,8 @@ public:
     explicit VideoGLWidget_gl(QWidget *parent = nullptr);
     ~VideoGLWidget_gl();
 
-    void pushFrame(uchar4 *frame, int width, int height);
+    //void pushFrame(uchar4 *frame, int width, int height);
+    void pushFrame(const QByteArray &frameData, int width, int height) ;
 
 protected:
     void initializeGL() override;
@@ -29,11 +30,12 @@ protected:
     void resizeGL(int w, int h) override;
 
 private:
-    GLuint textureID;
-    uchar4 *currentFrame;
-    int frameWidth;
-    int frameHeight;
+    QByteArray frameData;
+    int frameWidth = 0;
+    int frameHeight = 0;
     QMutex frameMutex;
+    GLuint textureID = 0;
+
 };
 
 #endif // VIDEOGLWIDGET_GL_H

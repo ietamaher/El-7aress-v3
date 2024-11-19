@@ -2,12 +2,17 @@
 /build-*/
 /debug/
 /release/
+/docs/
+ 
 
 # Qt Creator specific files
 *.pro.user
 *.pro.user.*
 *.qbs.user
 *.qbs.user.*
+Dockfile
+Dockfile.*
+
 
 # Other
 *.o

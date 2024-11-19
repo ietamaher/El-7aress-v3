@@ -3,6 +3,8 @@
 #include <gst/gl/gl.h>
 #include <chrono>
 #include <iostream>
+#include <QThread>
+#include <QCoreApplication>
 
 CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QObject *parent)
     : QObject(parent),
@@ -51,12 +53,18 @@ void CameraPipelineDay::stop()
 {
     if (!pipeline)
         return;
-    gst_object_unref (GST_OBJECT (pipeline));
+
+    // Ensure this method runs in the main thread
+    if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
+        QMetaObject::invokeMethod(this, "stop", Qt::QueuedConnection);
+        return;
+    }
+
     // Disconnect signal handlers and remove probes
     if (appsink) {
         g_signal_handlers_disconnect_by_func(appsink, (gpointer)on_new_sample, this);
         gst_element_set_state(appsink, GST_STATE_NULL);
-        gst_object_unref(appsink);
+        // Do not unref appsink here
         appsink = nullptr;
     }
 
@@ -66,24 +74,17 @@ void CameraPipelineDay::stop()
         osd_sink_pad = nullptr;
     }
 
-    // Set the pipeline to NULL state
-    gst_element_set_state(pipeline, GST_STATE_NULL);
+    // Send EOS event to the pipeline
+    gst_element_send_event(pipeline, gst_event_new_eos());
 
-    // Remove bus watch before unref'ing the bus
+    // Do not set the pipeline to NULL here; wait for EOS message
+    // The pipeline will be set to NULL state in handleEOS()
+
+    // Remove bus watch before unref'ing the bus (if necessary)
     if (bus && bus_watch_id > 0) {
-        g_source_remove(bus_watch_id);
+        gst_bus_remove_signal_watch(bus);
         bus_watch_id = 0;
     }
-
-    // Unref the bus
-    if (bus) {
-        gst_object_unref(bus);
-        bus = nullptr;
-    }
-
-    // Unref the pipeline
-    gst_object_unref(pipeline);
-    pipeline = nullptr;
 }
 
 void CameraPipelineDay::onReticleStyleChanged(const QString &style)
@@ -182,8 +183,21 @@ void CameraPipelineDay::buildPipeline()
 
     // Tracker
     tracker = gst_element_factory_make("nvtracker", "tracker");
-    g_object_set(G_OBJECT(tracker), "ll-lib-file", "/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so", NULL);
-    g_object_set(G_OBJECT(tracker), "ll-config-file", "/opt/nvidia/deepstream/deepstream-6.4/sources/apps/sample_apps/deepstream-test2/dstest2_tracker_config.txt", NULL);
+    //g_object_set(G_OBJECT(tracker), "ll-lib-file", "/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so", NULL);
+    //g_object_set(G_OBJECT(tracker), "ll-config-file", "/opt/nvidia/deepstream/deepstream-6.4/sources/apps/sample_apps/deepstream-test2/dstest2_tracker_config.txt", NULL);
+    // Set required properties
+    g_object_set(G_OBJECT(tracker),
+                 "tracker-width", 640,
+                 "tracker-height", 384,
+                 "ll-lib-file", "/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so",
+                 "ll-config-file", "/opt/nvidia/deepstream/deepstream-6.4/sources/apps/sample_apps/deepstream-test2/dstest2_tracker_config.txt",
+                 "gpu_id", 0,
+                 NULL);
+
+    // Add a probe to the tracker's sink pad
+    GstPad *tracker_sink_pad = gst_element_get_static_pad(tracker, "sink");
+    gst_pad_add_probe(tracker_sink_pad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, tracker_sink_pad_probe, this, NULL);
+    gst_object_unref(tracker_sink_pad);
 
     nvvidconvsrc2 = gst_element_factory_make("nvvideoconvert", "convertor_src2");
 
@@ -267,7 +281,7 @@ void CameraPipelineDay::buildPipeline()
     gst_object_unref(sinkpad);
 
     // Link the rest of the pipeline from streammux onwards
-    if (!gst_element_link_many(streammux, pgie, tracker, nvvidconvsrc2, nvosd, nvvidconvsrc3, capsfilter3, appsink, NULL)) {
+    if (!gst_element_link_many(streammux, pgie,  tracker, nvvidconvsrc2, nvosd, nvvidconvsrc3, capsfilter3, appsink, NULL)) {
         qWarning("Failed to link elements from streammux onwards. Exiting.");
         gst_object_unref(pipeline);
         pipeline = nullptr;
@@ -337,9 +351,13 @@ void CameraPipelineDay::buildPipeline()
     gst_object_unref (osd_sink_pad);
      // Add bus watcher
     // Add bus watcher
-    bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
+    /*bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
     bus_watch_id = gst_bus_add_watch(bus, bus_call, this);
-    gst_object_unref(bus);
+    gst_object_unref(bus);*/
+
+    bus = gst_element_get_bus(pipeline);
+    gst_bus_add_signal_watch(bus);
+    g_signal_connect(bus, "message", G_CALLBACK(CameraPipelineDay::onBusMessage), this);
 
     qInfo("Elements are linked...");
 
@@ -1055,20 +1073,57 @@ int CameraPipelineDay::getSelectedTrackId()
     }
 }
 
-gboolean CameraPipelineDay::bus_call(GstBus *bus, GstMessage *msg, gpointer data)
+void CameraPipelineDay::onBusMessage(GstBus *bus, GstMessage *msg, gpointer user_data)
 {
-    CameraPipelineDay *self = static_cast<CameraPipelineDay *>(data);
+    CameraPipelineDay *self = static_cast<CameraPipelineDay *>(user_data);
+
     switch (GST_MESSAGE_TYPE(msg)) {
     case GST_MESSAGE_EOS:
-        qDebug() << "EOS received in bus_call";
+        qDebug() << "EOS received in onBusMessage";
         // Proceed with cleanup
-        self->stop();
+        self->handleEOS();
         break;
     case GST_MESSAGE_ERROR:
         // Handle error
+        self->handleError(msg);
         break;
     default:
         break;
     }
-    return TRUE;
+}
+
+// The probe function
+GstPadProbeReturn CameraPipelineDay::tracker_sink_pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+    GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
+
+    if (GST_EVENT_TYPE(event) == GST_EVENT_EOS) {
+        // Tracker has received EOS; you can proceed with any necessary cleanup
+        // For example, signal a condition variable or flag
+    }
+
+    return GST_PAD_PROBE_OK;
+}
+
+void CameraPipelineDay::handleEOS()
+{
+    // Set the pipeline to NULL state
+    gst_element_set_state(pipeline, GST_STATE_NULL);
+    // Proceed with any additional cleanup
+}
+
+void CameraPipelineDay::handleError(GstMessage *msg)
+{
+    GError *err = nullptr;
+    gchar *debug_info = nullptr;
+
+    gst_message_parse_error(msg, &err, &debug_info);
+    qWarning() << "Error received from element" << GST_OBJECT_NAME(msg->src) << ":" << err->message;
+    qWarning() << "Debugging information:" << (debug_info ? debug_info : "none");
+    g_clear_error(&err);
+    g_free(debug_info);
+
+    // Set the pipeline to NULL state
+    gst_element_set_state(pipeline, GST_STATE_NULL);
+    // Proceed with any additional cleanup
 }

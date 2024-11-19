@@ -15,7 +15,7 @@ VideoGLWidget_gl::~VideoGLWidget_gl() {
 
 void VideoGLWidget_gl::initializeGL() {
     initializeOpenGLFunctions();
-    glClearColor(0.9f, 0.9f, 0.9f, 0.5f);
+    glClearColor(0.5f, 0.5f, 0.5f, 0.5f);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 

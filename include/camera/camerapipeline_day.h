@@ -35,6 +35,7 @@
 #include <QMutex>
 #include <QMetaType>
 #include <set>
+#include <QSocketNotifier>
 
 #include "include/datamodel.h"
 
@@ -69,6 +70,7 @@ struct TrackDSInfo
     int framesSinceLastSeen;
 };
 
+class QThread;
 
 class CameraPipelineDay : public QObject
 {
@@ -110,20 +112,27 @@ signals:
     void trackingResult(QRect updatedBoundingBox);
     void selectedTrackLost(int trackId);
     void targetPositionUpdated(double targetAzimuth, double targetElevation);
-
-
+    void pipelineShutdownComplete();
+     void errorOccurred(const QString &errorMessage);
+    void endOfStream();
 public slots:
     //void setSelectedTrackId(int trackId);
+
 
 private:
     void buildPipeline();
     static GstFlowReturn on_new_sample(GstAppSink *sink, gpointer data);
     static GstPadProbeReturn osd_sink_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data);
+    static GstPadProbeReturn tracker_sink_pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
+
     //static GstPadProbeReturn nvtracker_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data);
     //static GstPadProbeReturn nvtracker_sink_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data);
     //static GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data);
     static void clear_obj_meta_list(NvDsFrameMeta *frame_meta);
-    static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data);
+    static   void onBusMessage(GstBus *bus, GstMessage *msg, gpointer user_data);
+    void handleEOS();
+    void handleError(GstMessage *msg);
+
     GstElement *pipeline;
     GstElement *appsink;
     GstElement *source;
@@ -163,6 +172,14 @@ private:
     QString m_currentReticleStyle;
     void onReticleStyleChanged(const QString &style);
     void renderReticle(NvDsDisplayMeta *display_meta);
+
+    QSocketNotifier* busNotifier;
+    QThread* busThread;
+    QMutex pipelineMutex;
+    void busThreadFunction();
+
+    bool setPipelineStateWithTimeout(GstElement* pipeline, GstState state, GstClockTime timeout = 5 * GST_SECOND);
+
 };
 
 #endif // CAMERA_PIPELINE_DAY_H

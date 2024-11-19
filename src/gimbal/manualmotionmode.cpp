@@ -31,22 +31,59 @@ void ManualMotionMode::handleJoystickInput(GimbalController* controller, int axi
     }
 }
 
-void ManualMotionMode::update(GimbalController* controller)
-{
-    // Define sensitivity or maximum speed
-    const float maxSpeed = 100.0f; // Maximum speed in degrees per second
+void ManualMotionMode::update(GimbalController* controller) {
+    // Define maximum angular velocity (degrees per second)
+    const float maxAngularVelocity = 100.0f; // Adjust as needed
 
-    // Calculate desired speeds based on joystick input
-    float azimuthSpeed = m_azimuthInput * maxSpeed;
-    float elevationSpeed = m_elevationInput * maxSpeed;
+    // Compute desired angular velocities from joystick inputs
+    float desiredAngularVelocityAzimuth = m_azimuthInput * maxAngularVelocity;
+    float desiredAngularVelocityElevation = m_elevationInput * maxAngularVelocity;
+
+    // Initialize stabilization corrections
+    float stabilizationAngularVelocityAzimuth = 0.0f;
+    float stabilizationAngularVelocityElevation = 0.0f;
+
+    // Get stabilization corrections if enabled
+    SensorSystem* sensorSystem = controller->getSensorSystem();
+    if (sensorSystem && controller->isStabilizationEnabled()) {
+        double gyroAngularRateRoll;    // Angular velocity around X-axis
+        double gyroAngularRatePitch;   // Angular velocity around Y-axis
+        double gyroAngularRateYaw;     // Angular velocity around Z-axis
+
+        // Get gyroscope angular rates (degrees per second)
+        sensorSystem->getGyroRates(gyroAngularRateRoll, gyroAngularRatePitch, gyroAngularRateYaw);
+
+        // Stabilization gains (adjust as needed)
+        const float stabilizationGainAzimuth = 1.0f;
+        const float stabilizationGainElevation = 1.0f;
+
+        // Compute stabilization corrections (negative to counteract disturbances)
+        stabilizationAngularVelocityAzimuth = -gyroAngularRateYaw * stabilizationGainAzimuth;
+        stabilizationAngularVelocityElevation = -gyroAngularRatePitch * stabilizationGainElevation;
+    }
+
+    // Combine manual inputs with stabilization corrections
+    float commandAngularVelocityAzimuth = desiredAngularVelocityAzimuth + stabilizationAngularVelocityAzimuth;
+    float commandAngularVelocityElevation = desiredAngularVelocityElevation + stabilizationAngularVelocityElevation;
+
+    // Apply limits
+    commandAngularVelocityAzimuth = std::clamp(commandAngularVelocityAzimuth, -maxAngularVelocity, maxAngularVelocity);
+    commandAngularVelocityElevation = std::clamp(commandAngularVelocityElevation, -maxAngularVelocity, maxAngularVelocity);
+
+    // Convert angular velocities to motor commands
+    const int stepsPerRevolution = 3200; // Adjust based on your motor's specifications
+
+    // Convert degrees per second to pulses per second
+    float pulsesPerSecondAzimuth = (commandAngularVelocityAzimuth / 360.0f) * stepsPerRevolution;
+    float pulsesPerSecondElevation = (commandAngularVelocityElevation / 360.0f) * stepsPerRevolution;
 
     // Determine directions
-    uint16_t azimuthDirection = (azimuthSpeed >= 0) ? 1 : 0;
-    uint16_t elevationDirection = (elevationSpeed >= 0) ? 1 : 0;
+    uint16_t azimuthDirection = (pulsesPerSecondAzimuth >= 0) ? 1 : 0;
+    uint16_t elevationDirection = (pulsesPerSecondElevation >= 0) ? 1 : 0;
 
     // Absolute values for speeds
-    uint16_t azimuthSpeedValue = static_cast<uint16_t>(fabs(azimuthSpeed));
-    uint16_t elevationSpeedValue = static_cast<uint16_t>(fabs(elevationSpeed));
+    uint16_t azimuthSpeedValue = static_cast<uint16_t>(fabs(pulsesPerSecondAzimuth));
+    uint16_t elevationSpeedValue = static_cast<uint16_t>(fabs(pulsesPerSecondElevation));
 
     // Send commands via PLCServoInterface
     if (controller->getPLCServoInterface()) {
@@ -55,13 +92,6 @@ void ManualMotionMode::update(GimbalController* controller)
         controller->getPLCServoInterface()->setElevationSpeed(elevationSpeedValue);
         controller->getPLCServoInterface()->setAzimuthDirection(azimuthDirection);
         controller->getPLCServoInterface()->setElevationDirection(elevationDirection);
-        controller->getPLCServoInterface()->setActualAzimuth(m_azimuth);
-        controller->getPLCServoInterface()->setActualElevation(m_elevation);
-        // Since we're in manual mode, target angles might not be used
-        controller->getPLCServoInterface()->setAzimuthTargetAngle(0);
-        controller->getPLCServoInterface()->setElevationTargetAngle(0);
-
-        // Send parameters to PLC
         controller->getPLCServoInterface()->sendParameters();
     }
 }

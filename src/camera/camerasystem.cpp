@@ -131,7 +131,7 @@ void CameraSystem::start() {
 
 void CameraSystem::shutdown() {
     if (m_cameraPipelineDay) {
-        m_cameraPipelineDay->stop();
+        //m_cameraPipelineDay->stop();
         delete m_cameraPipelineDay;
         m_cameraPipelineDay = nullptr;
 

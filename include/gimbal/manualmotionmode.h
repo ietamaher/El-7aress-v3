@@ -23,6 +23,10 @@ private:
 
     float m_azimuthInput;
     float m_elevationInput;
+
+    // stabilization corrections
+    double m_stabilizationAzimuth;
+    double m_stabilizationElevation;
 };
 
 #endif // MANUALMOTIONMODE_H

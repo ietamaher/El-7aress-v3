@@ -56,18 +56,18 @@
    <widget class="VideoGLWidget_gl" name="m_videowidget" native="true">
     <property name="geometry">
      <rect>
-      <x>300</x>
-      <y>30</y>
-      <width>960</width>
-      <height>720</height>
+      <x>1109</x>
+      <y>479</y>
+      <width>151</width>
+      <height>271</height>
      </rect>
     </property>
    </widget>
    <widget class="QListWidget" name="trackIdListWidget">
     <property name="geometry">
      <rect>
-      <x>20</x>
-      <y>40</y>
+      <x>650</x>
+      <y>180</y>
       <width>131</width>
       <height>231</height>
      </rect>
@@ -648,6 +648,60 @@
      <string>TextLabel</string>
     </property>
    </widget>
+   <widget class="QWidget" name="_widget" native="true">
+    <property name="geometry">
+     <rect>
+      <x>270</x>
+      <y>20</y>
+      <width>821</width>
+      <height>631</height>
+     </rect>
+    </property>
+   </widget>
+   <zorder>_widget</zorder>
+   <zorder>survBtn</zorder>
+   <zorder>trckBtn</zorder>
+   <zorder>engageBtn</zorder>
+   <zorder>m_videowidget</zorder>
+   <zorder>trackIdListWidget</zorder>
+   <zorder>pushButton</zorder>
+   <zorder>pushButton_2</zorder>
+   <zorder>pushButton_3</zorder>
+   <zorder>lblTemperatureAlarm</zorder>
+   <zorder>btnSelfCheck</zorder>
+   <zorder>lblBiasVoltageFault</zorder>
+   <zorder>lblSystemStatus</zorder>
+   <zorder>lblVersion</zorder>
+   <zorder>lblDistance</zorder>
+   <zorder>lblCounterMalfunction</zorder>
+   <zorder>btnSetFrequency</zorder>
+   <zorder>lblCurrentFrequency</zorder>
+   <zorder>btnQuerySettingValue</zorder>
+   <zorder>lblEchoStatus</zorder>
+   <zorder>btnContinuousRanging</zorder>
+   <zorder>lblFrequency</zorder>
+   <zorder>btnSingleRanging</zorder>
+   <zorder>btnQueryLaserCount</zorder>
+   <zorder>btnStopRanging</zorder>
+   <zorder>spinFrequency</zorder>
+   <zorder>lblLaserCount</zorder>
+   <zorder>systemStatusWidget</zorder>
+   <zorder>idleBtn</zorder>
+   <zorder>switchMotionModeButton</zorder>
+   <zorder>currentMotionModeLabel</zorder>
+   <zorder>trackButton</zorder>
+   <zorder>engageButton</zorder>
+   <zorder>cancelTrackingButton</zorder>
+   <zorder>detectionToggleButton</zorder>
+   <zorder>stabToggleButton</zorder>
+   <zorder>speedPlusButton</zorder>
+   <zorder>speedMinusButton</zorder>
+   <zorder>lblGimbalSpeed</zorder>
+   <zorder>FireButton</zorder>
+   <zorder>elevationSlider</zorder>
+   <zorder>azimuthSlider</zorder>
+   <zorder>elevationValueLabel</zorder>
+   <zorder>azimuthValueLabel</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

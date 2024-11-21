@@ -119,9 +119,10 @@ void MainWindow::initializeComponents() {
 
     m_stateManager->setMode(OperationalMode::Idle);
 
-    m_cameraSystem->setDisplayWidget(ui->m_videowidget);
-
-
+    //m_cameraSystem->setDisplayWidget(ui->_widget);
+    CameraPipelineDay* dayCamera = m_cameraSystem->getDayCamera();
+    QVBoxLayout *layout = new QVBoxLayout(ui->_widget); // Use the central widget's layout
+    layout->addWidget(dayCamera);
     // Set font and font size
     QFont listFont("Arial", 13);
     ui->trackIdListWidget->setFont(listFont);

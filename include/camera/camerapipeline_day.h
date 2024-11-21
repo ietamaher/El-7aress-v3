@@ -81,12 +81,12 @@ struct TrackDSInfo {
 class QThread;
 
 // Class Declaration
-class CameraPipelineDay : public QObject
+class CameraPipelineDay : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit CameraPipelineDay(DataModel *dataModel, QObject *parent = nullptr);
+    explicit CameraPipelineDay(DataModel *dataModel, QWidget *parent = nullptr);
     ~CameraPipelineDay();
 
     // Public Methods

@@ -7,8 +7,8 @@
 #include <QCoreApplication>
 #include <gst/gl/gstglmemory.h>
 
-CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QObject *parent)
-    : QObject(parent),
+CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QWidget *parent)
+    : QWidget(parent),
     m_dataModel(dataModel),
     pipeline(nullptr),
     appsink(nullptr),
@@ -223,14 +223,18 @@ void CameraPipelineDay::buildPipeline()
 
     glupload = gst_element_factory_make("glupload", "glupload");
 
-    appsink = gst_element_factory_make("appsink", "appsink");
+    appsink = gst_element_factory_make ("glimagesink", "src_glimagesink"); //gst_element_factory_make("appsink", "appsink");
 
-    GstCaps *appsink_caps = gst_caps_from_string("video/x-raw, format=(string)RGBA");
+    /*GstCaps *appsink_caps = gst_caps_from_string("video/x-raw, format=(string)RGBA");
     gst_app_sink_set_caps(GST_APP_SINK(appsink), appsink_caps);
-    gst_caps_unref(appsink_caps);
+    gst_caps_unref(appsink_caps);*/
+    g_object_set(G_OBJECT(appsink), "sync", FALSE, NULL);
 
-    g_object_set(G_OBJECT(appsink), "emit-signals", TRUE, "sync", FALSE, NULL);
-    g_signal_connect(appsink, "new-sample", G_CALLBACK(on_new_sample), this);
+    //g_object_set(G_OBJECT(appsink), "emit-signals", TRUE, "sync", FALSE, NULL);
+    //g_signal_connect(appsink, "new-sample", G_CALLBACK(on_new_sample), this);
+    // Force the creation of the native window
+    this->winId();
+    gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(appsink), (guintptr)this->winId());
 
     // Create the empty pipeline
     pipeline = gst_pipeline_new("camera-pipeline");
@@ -291,7 +295,7 @@ void CameraPipelineDay::buildPipeline()
             streammux, pgie, tracker,
             nvvidconvsrc2, capsfilter_nvvidconvsrc2,
             nvosd,
-            nvvidconvsrc3, capsfilter3, appsink, NULL)) {
+            nvvidconvsrc3 , appsink, NULL)) {
         qWarning("Failed to link elements from streammux onwards. Exiting.");
         gst_object_unref(pipeline);
         pipeline = nullptr;
@@ -805,7 +809,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
                         double targetElevation = currentElevation + targetElevationOffset;
 
                         // Emit signal to update target position
-                        qDebug() << "Emitting targetPositionUpdated from CameraSystem instance:" << self;
+                        //qDebug() << "Emitting targetPositionUpdated from CameraSystem instance:" << self;
 
                         emit self->targetPositionUpdated(targetAzimuth, targetElevation);
 

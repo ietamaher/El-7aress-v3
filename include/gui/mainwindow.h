@@ -21,6 +21,7 @@
 #include "include/datamodel.h"
 #include "include/comm/plcstationdriver.h"
 #include "include/gui/custommenudialog.h"
+#include "include/camera/camerapipeline_day.h"
 
 
 QT_BEGIN_NAMESPACE

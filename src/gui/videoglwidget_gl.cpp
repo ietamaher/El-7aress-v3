@@ -69,16 +69,6 @@ void VideoGLWidget_gl::pushFrame(const QByteArray &frameData, int width, int hei
     update(); // Schedule a repaint
 }
 
-/*void VideoGLWidget_gl::pushFrame(uchar4 *frame, int width, int height) {
-    frameMutex.lock();
-    currentFrame = frame;
-    frameWidth = width;
-    frameHeight = height;
-    frameMutex.unlock();
-
-    update();
-}*/
-
 void VideoGLWidget_gl::resizeGL(int w, int h) {
     glViewport(0, 0, w, h);
 }

@@ -31,7 +31,7 @@ CameraSystem::~CameraSystem() {
 void CameraSystem::initializePipelines() {
     // Initialize camera pipelines based on active camera
     if (m_isDayCameraActive) {
-        m_cameraPipelineDay = new CameraPipelineDay(m_dataModel, this);
+        m_cameraPipelineDay = new CameraPipelineDay(m_dataModel);
         connect(m_cameraPipelineDay, &CameraPipelineDay::newFrameAvailable, this, &CameraSystem::onNewFrameAvailable);
 
         connect(m_cameraPipelineDay, &CameraPipelineDay::trackedTargetsUpdated, this, &CameraSystem::onTrackedIdsUpdated, Qt::QueuedConnection);
@@ -175,8 +175,8 @@ void CameraSystem::switchToNightCamera() {
     }
 }
 
-void CameraSystem::setDisplayWidget(VideoGLWidget_gl *widget) {
-    m_displayWidget = widget;
+void CameraSystem::setDisplayWidget(CameraPipelineDay *widget) {
+    m_cameraPipelineDay = widget;
 }
 
 void CameraSystem::onNewFrameAvailable(const QByteArray &frameData, int width, int height) {
@@ -269,6 +269,11 @@ void CameraSystem::setSelectedTrackId(int trackId) {
     if (m_cameraPipelineDay) {
         m_cameraPipelineDay->setSelectedTrackId(trackId);
     }
+}
+
+CameraPipelineDay* CameraSystem::getDayCamera() const
+{
+    return m_cameraPipelineDay;
 }
 
 void CameraSystem::onSelectedTrackLost(int trackId)

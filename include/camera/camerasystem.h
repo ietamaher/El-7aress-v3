@@ -32,7 +32,7 @@ public:
     void shutdown();
     void switchToDayCamera();
     void switchToNightCamera();
-    void setDisplayWidget(VideoGLWidget_gl *widget);
+    void setDisplayWidget(CameraPipelineDay *widget);
 
     void zoomIn();
     void zoomOut();
@@ -43,7 +43,7 @@ public:
     void setProcessingMode(ProcessMode mode);
     ProcessMode getProcessingMode();
     void setSelectedTrackId(int trackId);
-
+    CameraPipelineDay* getDayCamera() const;
 
 
 

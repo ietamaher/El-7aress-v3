@@ -34,6 +34,13 @@ CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QWidget *parent)
     manual_bbox.width = 100;
     manual_bbox.height = 100;
 
+    fontColor = {0.0, 0.0, 0.0, 1.0}; // White
+    textBackgroundColor = {1.0, 1.0, 1.0, 0.5}; // Semi-transparent black
+    textFontParam.font_name = "Courier";
+    textFontParam.font_color= fontColor;
+    textFontParam.font_size = 13;
+
+
     connect(m_dataModel, &DataModel::reticleStyleChanged, this, &CameraPipelineDay::onReticleStyleChanged);
     qDebug() << "CameraSystem instance created:" << this;
 
@@ -199,10 +206,10 @@ void CameraPipelineDay::buildPipeline()
     g_object_set(G_OBJECT(nvosd),
                  "gpu-id", 0,
                  "process-mode", 1,
-                 "display-clock", TRUE,
+                 "display-clock", FALSE,
                  "display-text", TRUE,
-                 "clock-font", "Arial",
-                 "clock-font-size", 13,
+                 "clock-font", "New Courier",
+                 "clock-font-size", 12,
                  "x-clock-offset", 30,
                  "y-clock-offset", 30,
                  "clock-color", 0xff0000ff,
@@ -433,9 +440,6 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
 {
     CameraPipelineDay *self = static_cast<CameraPipelineDay *>(user_data);
 
-
-
-
     // Increment framesSinceLastSeen for all active tracks
     for (auto &entry : self->activeTracks)
     {
@@ -454,10 +458,15 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
 
         // **General Overlay Start**
 
+
+
+
+
         // Acquire display meta for general overlay
         NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
         display_meta->num_labels = 0;
         display_meta->num_lines = 0;
+        display_meta->num_lines += 2;
 
         // Prepare text labels
         int label_index = 0;
@@ -518,101 +527,218 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         // READY state is true if all the above are true
         bool readyState = gunArmedState && ammunitionLoadState && stationMotionState && AuthorizeState;
 
-        NvOSD_ColorParams fontColor = {1.0, 0.0, 0.0, 1.0}; // White
-        NvOSD_ColorParams textBackgroundColor = {0.0, 0.0, 0.0, 0.5}; // Semi-transparent black
 
+        // **Draw Circle**
+        NvOSD_CircleParams &circle_params = display_meta->circle_params[display_meta->num_circles];
+        display_meta->num_circles++;
+
+        // Set circle parameters
+        circle_params.xc = 880; // Center X
+        circle_params.yc = 60; // Center Y
+        circle_params.radius = 50; // Adjust as needed
+
+        // Set circle color
+        circle_params.circle_color = self->fontColor;
+        circle_params.has_bg_color = true;
+        circle_params.bg_color =  self->textBackgroundColor; // Semi-transparent black
+        circle_params.circle_width = 1;
+        //nvds_add_display_meta_to_frame(frame_meta, display_meta);
+
+        // **Draw Azimuth Line**
+        double azimuthDegrees = 50;//self->m_dataModel->getAzimuth(); // Implement this method
+        double azimuthRadians = azimuthDegrees * M_PI / 180.0;
+        int centerX = circle_params.xc;
+        int centerY = circle_params.yc;
+        int radius = 45;
+        int azimuthEndX = centerX + radius * sin(azimuthRadians);
+        int azimuthEndY = centerY - radius * cos(azimuthRadians);
+
+        /*NvOSD_LineParams *azimuthLine = &display_meta->line_params[display_meta->num_lines++];
+        azimuthLine->x1 = centerX;
+        azimuthLine->y1 = centerY;
+        azimuthLine->x2 = azimuthEndX;
+        azimuthLine->y2 = azimuthEndY;
+        azimuthLine->line_width = 2;
+        azimuthLine->line_color = (NvOSD_ColorParams){1, 0, 0, 1.0}; // Green color*/
+
+        // **Draw Pie Slice (Camembert)**
+        double fovDegrees = 30;//self->m_dataModel->getFOV(); // Implement this method
+        double fovRadians = fovDegrees * M_PI / 180.0;
+
+        double startAngle = azimuthRadians - fovRadians / 2;
+        double endAngle = azimuthRadians + fovRadians / 2;
+
+        // Normalize angles between 0 and 2 * PI
+        if (startAngle < 0) startAngle += 2 * M_PI;
+        if (endAngle > 2 * M_PI) endAngle -= 2 * M_PI;
+
+        int numArcSegments = 10; // Adjust for smoothness
+        double angleIncrement = (endAngle - startAngle ) / (numArcSegments);
+
+        // Draw the arc
+        for (int i = 0; i < numArcSegments; ++i) {
+            double angle1 = startAngle + i * angleIncrement;
+            double angle2 = startAngle + (i + 1) * angleIncrement;
+
+            int x1 = centerX + radius * sin(angle1);
+            int y1 = centerY - radius * cos(angle1);
+            int x2 = centerX + radius * sin(angle2);
+            int y2 = centerY - radius * cos(angle2);
+            qDebug() << "x1=" << x1  << " x2=" << x2 << " y1=" << y1 << " y2=" << y2;
+            NvOSD_LineParams *line_params = &display_meta->line_params[display_meta->num_lines++];
+            line_params->x1 = x1;
+            line_params->y1 = y1;
+            line_params->x2 = x2;
+            line_params->y2 = y2;
+            line_params->line_width = 1;
+            line_params->line_color =  self->fontColor;
+        }
+
+        // Draw lines from center to start and end points of the arc
+        int startX = centerX + radius * sin(startAngle);
+        int startY = centerY - radius * cos(startAngle);
+        int endX = centerX + radius * sin(endAngle);
+        int endY = centerY - radius * cos(endAngle);
+
+        NvOSD_LineParams *startLine = &display_meta->line_params[display_meta->num_lines++];
+        startLine->x1 = centerX;
+        startLine->y1 = centerY;
+        startLine->x2 = startX;
+        startLine->y2 = startY;
+        startLine->line_width = 1;
+        startLine->line_color =  self->fontColor;
+
+        NvOSD_LineParams *endLine = &display_meta->line_params[display_meta->num_lines++];
+        endLine->x1 = centerX;
+        endLine->y1 = centerY;
+        endLine->x2 = endX;
+        endLine->y2 = endY;
+        endLine->line_width = 1;
+        endLine->line_color =  self->fontColor;
 
 
         // **State Mode Label**
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_state = &display_meta->text_params[label_index++];
-        txt_params_state->display_text = g_strdup_printf("State Mode: %s", strStateMode);
+        txt_params_state->display_text = g_strdup_printf("State: %s", strStateMode);
         txt_params_state->x_offset = 10;
-        txt_params_state->y_offset = 30;
-        txt_params_state->font_params.font_color = fontColor; // White
-        txt_params_state->font_params.font_size = 16;
-        txt_params_state->font_params.font_name = "Serif";
+        txt_params_state->y_offset = 10;
+        txt_params_state->font_params =  self->textFontParam;
         txt_params_state->set_bg_clr = 1;
-        txt_params_state->text_bg_clr = textBackgroundColor; // Semi-transparent black
+        txt_params_state->text_bg_clr =  self->textBackgroundColor; // Semi-transparent black
 
         // **Motion Mode Label**
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_motion = &display_meta->text_params[label_index++];
-        txt_params_motion->display_text = g_strdup_printf("Motion Mode: %s", currentMotionMode.toUtf8().constData());
+        txt_params_motion->display_text = g_strdup_printf("Motion: %s", currentMotionMode.toUtf8().constData());
         txt_params_motion->x_offset = 10;
-        txt_params_motion->y_offset = 60;
-        txt_params_motion->font_params = txt_params_state->font_params;
+        txt_params_motion->y_offset = 40;
+        txt_params_motion->font_params =  self->textFontParam;
         txt_params_motion->set_bg_clr = txt_params_state->set_bg_clr;
         txt_params_motion->text_bg_clr = txt_params_state->text_bg_clr;
 
         // **LRF Distance Label**
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_lrf = &display_meta->text_params[label_index++];
-        txt_params_lrf->display_text = g_strdup_printf("LRF Distance: %.2f m", lrfDistance);
+        txt_params_lrf->display_text = g_strdup_printf("LRF: %.2f m", lrfDistance);
         txt_params_lrf->x_offset = 10;
-        txt_params_lrf->y_offset = 90;
-        txt_params_lrf->font_params = txt_params_state->font_params;
+        txt_params_lrf->y_offset = 630;
+        txt_params_lrf->font_params =  self->textFontParam;
         txt_params_lrf->set_bg_clr = txt_params_state->set_bg_clr;
         txt_params_lrf->text_bg_clr = txt_params_state->text_bg_clr;
 
         // **Detection Status Label**
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_detection = &display_meta->text_params[label_index++];
-        txt_params_detection->display_text = g_strdup_printf("Detection: %s", detectionEnabled ? "On" : "Off");
-        txt_params_detection->x_offset = 10;
-        txt_params_detection->y_offset = 150; // Adjust as needed
-        txt_params_detection->font_params = txt_params_state->font_params;
+        txt_params_detection->display_text = g_strdup_printf("Det: %s", detectionEnabled ? "On" : "Off");
+        txt_params_detection->x_offset = 350;
+        txt_params_detection->y_offset = 10; // Adjust as needed
+        txt_params_detection->font_params = self->textFontParam;
         txt_params_detection->set_bg_clr = txt_params_state->set_bg_clr;
         txt_params_detection->text_bg_clr = txt_params_state->text_bg_clr;
 
         // **Stabilization Status Label**
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_stab = &display_meta->text_params[label_index++];
-        txt_params_stab->display_text = g_strdup_printf("Stabilization: %s", stabilizationEnabled ? "On" : "Off");
-        txt_params_stab->x_offset = 10;
-        txt_params_stab->y_offset = 180; // Adjust as needed
-        txt_params_stab->font_params = txt_params_state->font_params;
+        txt_params_stab->display_text = g_strdup_printf("Stab: %s", stabilizationEnabled ? "On" : "Off");
+        txt_params_stab->x_offset = 450;
+        txt_params_stab->y_offset = 10; // Adjust as needed
+        txt_params_stab->font_params =  self->textFontParam;
         txt_params_stab->set_bg_clr = txt_params_state->set_bg_clr;
         txt_params_stab->text_bg_clr = txt_params_state->text_bg_clr;
+
+        // **Display Azimuth on OSD**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_azimuth = &display_meta->text_params[label_index++];
+        txt_params_azimuth->display_text = g_strdup_printf("Az: %.0f°", azimuth);
+
+        // Set text parameters (position, font, color)
+        txt_params_azimuth->x_offset = 850; // Adjust x position as needed
+        txt_params_azimuth->y_offset = 140; // Adjust y position as needed
+        txt_params_azimuth->font_params  =  self->textFontParam;
+
+        txt_params_azimuth->set_bg_clr = 1;
+        txt_params_azimuth->text_bg_clr = self->textBackgroundColor;
+
+        // **Display Elevation on OSD**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_elevation = &display_meta->text_params[label_index++];
+        txt_params_elevation->display_text = g_strdup_printf("El: %.0f°", elevation);
+
+        // Set text parameters (position, font, color)
+        txt_params_elevation->x_offset = 855; // Adjust x position as needed
+        txt_params_elevation->y_offset = 170; // Adjust y position as needed
+        txt_params_elevation->font_params  =  self->textFontParam;
+
+        txt_params_elevation->set_bg_clr = 1;
+        txt_params_elevation->text_bg_clr = self->textBackgroundColor;
+
+        // **Display FOV on OSD**
+        display_meta->num_labels++;
+        NvOSD_TextParams *txt_params_fov = &display_meta->text_params[label_index++];
+        txt_params_fov->display_text = g_strdup_printf("FOV: %.0f°", elevation);
+
+        // Set text parameters (position, font, color)
+        txt_params_fov->x_offset = 850; // Adjust x position as needed
+        txt_params_fov->y_offset = 660; // Adjust y position as needed
+        txt_params_fov->font_params  =  self->textFontParam;
+
+        txt_params_fov->set_bg_clr = 1;
+        txt_params_fov->text_bg_clr =  self->textBackgroundColor;
 
         // **Display Gimbal Speed on OSD**
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_speed = &display_meta->text_params[label_index++];
-        txt_params_speed->display_text = g_strdup_printf("Gimbal Speed: %.0f%%", gimbalSpeed);
+        txt_params_speed->display_text = g_strdup_printf("Speed: %.0f%", gimbalSpeed);
 
         // Set text parameters (position, font, color)
-        txt_params_speed->x_offset = 10; // Adjust x position as needed
-        txt_params_speed->y_offset = 210; // Adjust y position as needed
-        txt_params_speed->font_params.font_name = "Serif";
-        txt_params_speed->font_params.font_size = 16;
-        txt_params_speed->font_params.font_color = fontColor; // White color
+        txt_params_speed->x_offset = 850; // Adjust x position as needed
+        txt_params_speed->y_offset = 690; // Adjust y position as needed
+        txt_params_speed->font_params  =  self->textFontParam;
+
         txt_params_speed->set_bg_clr = 1;
-        txt_params_speed->text_bg_clr = textBackgroundColor; // Semi-transparent black background
+        txt_params_speed->text_bg_clr =  self->textBackgroundColor; // Semi-transparent black background
+
 
         // **Display Fire Mode  on OSD**
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_mode = &display_meta->text_params[label_index++];
-
-
-
         txt_params_mode->display_text = g_strdup_printf("Fire Mode: %s", strMode);
 
         // Set text parameters (position, font, color)
         txt_params_mode->x_offset = 10; // Adjust x position as needed
-        txt_params_mode->y_offset = 240; // Adjust y position as needed
-        txt_params_mode->font_params.font_name = "Serif";
-        txt_params_mode->font_params.font_size = 16;
-        txt_params_mode->font_params.font_color = fontColor; // White color
+        txt_params_mode->y_offset = 660; // Adjust y position as needed
+        txt_params_mode->font_params =  self->textFontParam; // White color
         txt_params_mode->set_bg_clr = 1;
-        txt_params_mode->text_bg_clr = textBackgroundColor; // Semi-transparent black background
+        txt_params_mode->text_bg_clr =  self->textBackgroundColor; // Semi-transparent black background
 
         // ** Active Camera Label**
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_camera = &display_meta->text_params[label_index++];
-        txt_params_camera->display_text = g_strdup_printf("Camera: %s", activeCamera ? "DAY" : "THERMAL");
-        txt_params_camera->x_offset = 10;
-        txt_params_camera->y_offset = 270; // Adjust as needed
-        txt_params_camera->font_params = txt_params_state->font_params;
+        txt_params_camera->display_text = g_strdup_printf("CAM: %s", activeCamera ? "DAY" : "THERMAL");
+        txt_params_camera->x_offset = 600;
+        txt_params_camera->y_offset = 10; // Adjust as needed
+        txt_params_camera->font_params =  self->textFontParam;
         txt_params_camera->set_bg_clr = txt_params_state->set_bg_clr;
         txt_params_camera->text_bg_clr = txt_params_state->text_bg_clr;
 
@@ -623,8 +749,8 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         NvOSD_TextParams *txt_params_charged = &display_meta->text_params[label_index++];
         txt_params_charged->display_text = g_strdup_printf("CHARGED: %s", ammunitionLoadState ? "CHARGED" : "-");
         txt_params_charged->x_offset = 10;
-        txt_params_charged->y_offset = 320; // Adjust as needed
-        txt_params_charged->font_params = txt_params_state->font_params;
+        txt_params_charged->y_offset = 690; // Adjust as needed
+        txt_params_charged->font_params =  self->textFontParam;
         txt_params_charged->set_bg_clr = txt_params_state->set_bg_clr;
         txt_params_charged->text_bg_clr = txt_params_state->text_bg_clr;
 
@@ -632,9 +758,9 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_armed = &display_meta->text_params[label_index++];
         txt_params_armed->display_text = g_strdup_printf("ARMED: %s", gunArmedState ? "ARMED" : "-");
-        txt_params_armed->x_offset = 10;
-        txt_params_armed->y_offset = 350; // Adjust as needed
-        txt_params_armed->font_params = txt_params_state->font_params;
+        txt_params_armed->x_offset = 150;
+        txt_params_armed->y_offset = 690; // Adjust as needed
+        txt_params_armed->font_params =  self->textFontParam;
         txt_params_armed->set_bg_clr = txt_params_state->set_bg_clr;
         txt_params_armed->text_bg_clr = txt_params_state->text_bg_clr;
 
@@ -642,9 +768,9 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         display_meta->num_labels++;
         NvOSD_TextParams *txt_params_ready = &display_meta->text_params[label_index++];
         txt_params_ready->display_text = g_strdup_printf("READY: %s", readyState ? "READY" : "-");
-        txt_params_ready->x_offset = 10;
-        txt_params_ready->y_offset = 380; // Adjust as needed
-        txt_params_ready->font_params = txt_params_state->font_params;
+        txt_params_ready->x_offset = 300;
+        txt_params_ready->y_offset = 690; // Adjust as needed
+        txt_params_ready->font_params =  self->textFontParam;
         txt_params_ready->set_bg_clr = txt_params_state->set_bg_clr;
         txt_params_ready->text_bg_clr = txt_params_state->text_bg_clr;
 
@@ -655,14 +781,14 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         int line_index = 0;
 
         // Horizontal line
-        display_meta->num_lines++;
+       /* display_meta->num_lines++;
         NvOSD_LineParams *line_params_h = &display_meta->line_params[line_index++];
         line_params_h->x1 = frame_width / 2 - 20;
         line_params_h->y1 = frame_height / 2;
         line_params_h->x2 = frame_width / 2 + 20;
         line_params_h->y2 = frame_height / 2;
         line_params_h->line_width = 2;
-        line_params_h->line_color = fontColor; // White
+        line_params_h->line_color =  self->fontColor;
 
         // Vertical line
         display_meta->num_lines++;
@@ -672,7 +798,61 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         line_params_v->x2 = frame_width / 2;
         line_params_v->y2 = frame_height / 2 + 20;
         line_params_v->line_width = 2;
-        line_params_v->line_color = fontColor; // White
+        line_params_v->line_color =  self->fontColor;*/
+
+
+          centerX = frame_meta->source_frame_width / 2; // Center X
+          centerY = frame_meta->source_frame_height / 2; // Center Y
+        int length = 40; // Length of each line of the crosshair
+        // Horizontal line
+        NvOSD_LineParams *line_params_h_l = &display_meta->line_params[display_meta->num_lines++];
+        line_params_h_l->x1 = centerX - (length / 2);
+        line_params_h_l->y1 = centerY;
+        line_params_h_l->x2 = centerX - 5;
+        line_params_h_l->y2 = centerY;
+        line_params_h_l->line_width = 2;
+        line_params_h_l->line_color =  self->fontColor;
+
+        NvOSD_LineParams *line_params_h_r = &display_meta->line_params[display_meta->num_lines++];
+        line_params_h_r->x1 = centerX + 5;
+        line_params_h_r->y1 = centerY;
+        line_params_h_r->x2 = centerX + (length / 2);
+        line_params_h_r->y2 = centerY;
+        line_params_h_r->line_width = 2;
+        line_params_h_r->line_color =  self->fontColor;
+        // Vertical line
+        NvOSD_LineParams *line_params_v = &display_meta->line_params[display_meta->num_lines++];
+        line_params_v->x1 = centerX;
+        line_params_v->y1 = centerY+5 ; //- (length / 2);
+        line_params_v->x2 = centerX;
+        line_params_v->y2 = centerY + (length / 2);
+        line_params_v->line_width = 2;
+        line_params_v->line_color =  self->fontColor;
+
+        int bracketSize = 30; // Size of each bracket arm
+        int bracketThickness = 2; // Line thickness of the bracket
+        int x_offsetFromCenter = 120; // Offset from the crosshair center
+        int offsetFromCenter = 90; // Offset from the crosshair center
+
+
+
+        // Top-left bracket
+        self->addLineToDisplayMeta(display_meta, centerX - x_offsetFromCenter, centerY - offsetFromCenter, centerX - x_offsetFromCenter + bracketSize, centerY - offsetFromCenter);
+        self->addLineToDisplayMeta(display_meta, centerX - x_offsetFromCenter, centerY - offsetFromCenter, centerX - x_offsetFromCenter, centerY - offsetFromCenter + bracketSize);
+
+        // Top-right bracket
+        self->addLineToDisplayMeta(display_meta, centerX + x_offsetFromCenter, centerY - offsetFromCenter, centerX + x_offsetFromCenter - bracketSize, centerY - offsetFromCenter);
+        self->addLineToDisplayMeta(display_meta, centerX + x_offsetFromCenter, centerY - offsetFromCenter, centerX + x_offsetFromCenter, centerY - offsetFromCenter + bracketSize);
+
+        // Bottom-left bracket
+        self->addLineToDisplayMeta(display_meta, centerX - x_offsetFromCenter, centerY + offsetFromCenter, centerX - x_offsetFromCenter + bracketSize, centerY + offsetFromCenter);
+        self->addLineToDisplayMeta(display_meta, centerX - x_offsetFromCenter, centerY + offsetFromCenter, centerX - x_offsetFromCenter, centerY + offsetFromCenter - bracketSize);
+
+        // Bottom-right bracket
+        self->addLineToDisplayMeta(display_meta, centerX + x_offsetFromCenter, centerY + offsetFromCenter, centerX + x_offsetFromCenter - bracketSize, centerY + offsetFromCenter);
+        self->addLineToDisplayMeta(display_meta, centerX + x_offsetFromCenter, centerY + offsetFromCenter, centerX + x_offsetFromCenter, centerY + offsetFromCenter - bracketSize);
+
+
 
         // **Add the Display Meta to the Frame**
         nvds_add_display_meta_to_frame(frame_meta, display_meta);
@@ -708,7 +888,11 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
                         g_free(obj_meta->text_params.display_text);
                     }
                     obj_meta->text_params.display_text = g_strdup(obj_meta->obj_label);
-                //}
+                    obj_meta->text_params.font_params = self->textFontParam;
+                    obj_meta->rect_params.border_color = self->fontColor; // Red
+                    obj_meta->rect_params.border_width = 1;
+
+                    //}
                 //else
                 //{
                     // Mark object meta for removal
@@ -751,13 +935,15 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
                         g_free(obj_meta->text_params.display_text);
                     }
                     obj_meta->text_params.display_text = g_strdup_printf("%s ID:%lu", obj_meta->obj_label, obj_meta->object_id);
-
+                    obj_meta->text_params.font_params = self->textFontParam;
+                    obj_meta->rect_params.border_width = 1;
+                    obj_meta->rect_params.border_color = self->fontColor;
                     // Highlight selected object
                     if (self->selectedTrackId == obj_meta->object_id)
                     {
                         // Change bounding box color and border width
                         obj_meta->rect_params.border_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Red
-                        obj_meta->rect_params.border_width = 2;
+
 
                         // Draw line from center to object's center
                         NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
@@ -768,6 +954,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
                         display_meta->line_params[0].y2 = obj_meta->rect_params.top + obj_meta->rect_params.height / 2;
                         display_meta->line_params[0].line_width = 1;
                         display_meta->line_params[0].line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
+
                         nvds_add_display_meta_to_frame(frame_meta, display_meta);
 
                         // **Calculate Target Angles Adjusted for Cropping**
@@ -861,7 +1048,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         case MODE_MANUAL_TRACKING:
         {
             // Remove all detection/tracking metadata
-           //clear_obj_meta_list(frame_meta);
+            clear_obj_meta_list(frame_meta);
 
             // Add manual tracking bounding box if enabled
             //if (self->manualTrackingEnabled)
@@ -999,6 +1186,17 @@ void CameraPipelineDay::clear_obj_meta_list(NvDsFrameMeta *frame_meta)
     }
 }
 
+
+// Function to add a line to the display meta
+void CameraPipelineDay::addLineToDisplayMeta(NvDsDisplayMeta *display_meta, int x1, int y1, int x2, int y2) {
+    NvOSD_LineParams *line_params = &display_meta->line_params[display_meta->num_lines++];
+    line_params->x1 = x1;
+    line_params->y1 = y1;
+    line_params->x2 = x2;
+    line_params->y2 = y2;
+    line_params->line_width = 2;
+    line_params->line_color = fontColor;
+}
 void CameraPipelineDay::setSelectedTrackId(int trackId)
 {
     QMutexLocker locker(&mutex);

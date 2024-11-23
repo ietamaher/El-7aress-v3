@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1272</width>
+    <width>1492</width>
     <height>795</height>
    </rect>
   </property>
@@ -56,18 +56,18 @@
    <widget class="VideoGLWidget_gl" name="m_videowidget" native="true">
     <property name="geometry">
      <rect>
-      <x>1109</x>
-      <y>479</y>
-      <width>151</width>
-      <height>271</height>
+      <x>1030</x>
+      <y>740</y>
+      <width>231</width>
+      <height>21</height>
      </rect>
     </property>
    </widget>
    <widget class="QListWidget" name="trackIdListWidget">
     <property name="geometry">
      <rect>
-      <x>650</x>
-      <y>180</y>
+      <x>20</x>
+      <y>40</y>
       <width>131</width>
       <height>231</height>
      </rect>
@@ -421,8 +421,8 @@
    <widget class="StatusPanel" name="systemStatusWidget" native="true">
     <property name="geometry">
      <rect>
-      <x>960</x>
-      <y>320</y>
+      <x>280</x>
+      <y>40</y>
       <width>241</width>
       <height>411</height>
      </rect>
@@ -651,10 +651,10 @@
    <widget class="QWidget" name="_widget" native="true">
     <property name="geometry">
      <rect>
-      <x>270</x>
-      <y>20</y>
-      <width>821</width>
-      <height>631</height>
+      <x>530</x>
+      <y>10</y>
+      <width>960</width>
+      <height>720</height>
      </rect>
     </property>
    </widget>
@@ -708,7 +708,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1272</width>
+     <width>1492</width>
      <height>22</height>
     </rect>
    </property>

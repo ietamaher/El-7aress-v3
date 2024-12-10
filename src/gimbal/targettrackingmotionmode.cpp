@@ -1,7 +1,7 @@
 #include "include/gimbal/targettrackingmotionmode.h"
 #include "include/gimbal/gimbalcontroller.h"
 #include "include/camera/camerasystem.h"
-#include "include/gimbal/gimbalmotordriver.h"
+
 #include <QDebug>
 
 void TargetTrackingMotionMode::enter(GimbalController* controller) {

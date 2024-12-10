@@ -34,6 +34,19 @@ CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QWidget *parent)
     manual_bbox.width = 100;
     manual_bbox.height = 100;
 
+    fontColor = {0.0, 0.85, 0.17, 1.0};
+    //fontColor = {1.0, 1.0, 1.0, 1.0};
+
+    textShadowColor = {0.0, 0.0, 0.0, 0.65};
+    textFontParam.font_name = "OCR-A";
+    textFontParam.font_color= fontColor;
+    textFontParam.font_size = 13;
+
+    lineColor = {0.0, 0.85, 0.17, 1.0};
+    //lineColor = {0.2, 0.8, 0.2, 1.0};
+    shadowLineColor = {0.0, 0.0, 0.0, 0.65};
+
+
     connect(m_dataModel, &DataModel::reticleStyleChanged, this, &CameraPipelineDay::onReticleStyleChanged);
     qDebug() << "CameraSystem instance created:" << this;
 
@@ -199,10 +212,10 @@ void CameraPipelineDay::buildPipeline()
     g_object_set(G_OBJECT(nvosd),
                  "gpu-id", 0,
                  "process-mode", 1,
-                 "display-clock", TRUE,
+                 "display-clock", FALSE,
                  "display-text", TRUE,
-                 "clock-font", "Arial",
-                 "clock-font-size", 13,
+                 "clock-font", "New Courier",
+                 "clock-font-size", 12,
                  "x-clock-offset", 30,
                  "y-clock-offset", 30,
                  "clock-color", 0xff0000ff,
@@ -432,9 +445,7 @@ GstFlowReturn CameraPipelineDay::on_new_sample(GstAppSink *sink, gpointer data)
 GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
     CameraPipelineDay *self = static_cast<CameraPipelineDay *>(user_data);
-
-
-
+    auto start = std::chrono::high_resolution_clock::now();
 
     // Increment framesSinceLastSeen for all active tracks
     for (auto &entry : self->activeTracks)
@@ -454,13 +465,17 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
 
         // **General Overlay Start**
 
-        // Acquire display meta for general overlay
-        NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
-        display_meta->num_labels = 0;
-        display_meta->num_lines = 0;
+
+
+
+
+
+
+        // Ensure enough memory for labels
 
         // Prepare text labels
-        int label_index = 0;
+        //int label_index = 0;
+        //int line_index = 0;
 
         // Safely access data from DataModel
 
@@ -468,16 +483,16 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         const char* strStateMode;
         switch (currentStateMode) {
         case OperationalMode::Idle:
-            strStateMode = "Idle";
+            strStateMode = "IDLE";
             break;
         case OperationalMode::Surveillance:
-            strStateMode = "Surveillance";
+            strStateMode = "SURVEILLANCE";
             break;
         case OperationalMode::Tracking:
-            strStateMode = "Tracking";
+            strStateMode = "TRACKING";
             break;
         case OperationalMode::Engagement:
-            strStateMode = "Engagement";
+            strStateMode = "ENGAGEMENT";
             break;
         default:
             strStateMode = "Unknown Mode";
@@ -486,21 +501,22 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
 
         QString currentMotionMode = self->m_dataModel->getMotionMode();
         double lrfDistance = self->m_dataModel->getLRFDistance();
-        double azimuth, elevation;
-        self->m_dataModel->getGimbalOrientation(azimuth, elevation);
+         double azimuth = self->m_dataModel->getGimbalAzimuthUpdated();
+        double elevation = self->m_dataModel->getGimbalElevationUpdated();
+
         double gimbalSpeed = self->m_dataModel->getSpeedSw();
         FireMode fireMode = self->m_dataModel->getFireMode();
         // Function to convert FireMode enum to string
         const char* strMode;
         switch (fireMode) {
         case FireMode::SingleShot:
-            strMode = "Single Shot";
+            strMode = "SINGLE SHOT";
             break;
         case FireMode::ShortBurst:
-            strMode = "Short Burst";
+            strMode = "SHORT BURST";
             break;
         case FireMode::LongBurst:
-            strMode = "Long Burst";
+            strMode = "LONG BURST";
             break;
         default:
             strMode = "Unknown Mode";
@@ -517,166 +533,512 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         bool AuthorizeState = self->m_dataModel->getAuthorizeSw();        // Authorization switch state
         // READY state is true if all the above are true
         bool readyState = gunArmedState && ammunitionLoadState && stationMotionState && AuthorizeState;
-
-        NvOSD_ColorParams fontColor = {1.0, 0.0, 0.0, 1.0}; // White
-        NvOSD_ColorParams textBackgroundColor = {0.0, 0.0, 0.0, 0.5}; // Semi-transparent black
-
-
+        // Acquire display meta for general overlay
+        NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
+        display_meta->num_labels = 0;
 
         // **State Mode Label**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_state = &display_meta->text_params[label_index++];
-        txt_params_state->display_text = g_strdup_printf("State Mode: %s", strStateMode);
-        txt_params_state->x_offset = 10;
-        txt_params_state->y_offset = 30;
-        txt_params_state->font_params.font_color = fontColor; // White
-        txt_params_state->font_params.font_size = 16;
-        txt_params_state->font_params.font_name = "Serif";
-        txt_params_state->set_bg_clr = 1;
-        txt_params_state->text_bg_clr = textBackgroundColor; // Semi-transparent black
+        char* displayStateText = g_strdup_printf("STATE: %s", strStateMode);
+        self->addTextToDisplayMeta(display_meta, 10, 10, displayStateText);
+        g_free(displayStateText);  // Free memory after use
 
         // **Motion Mode Label**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_motion = &display_meta->text_params[label_index++];
-        txt_params_motion->display_text = g_strdup_printf("Motion Mode: %s", currentMotionMode.toUtf8().constData());
-        txt_params_motion->x_offset = 10;
-        txt_params_motion->y_offset = 60;
-        txt_params_motion->font_params = txt_params_state->font_params;
-        txt_params_motion->set_bg_clr = txt_params_state->set_bg_clr;
-        txt_params_motion->text_bg_clr = txt_params_state->text_bg_clr;
+        char* displayMotionText = g_strdup_printf("MOTION: %s", currentMotionMode.toUtf8().constData());
+        self->addTextToDisplayMeta(display_meta, 10, 40, displayMotionText);
+        g_free(displayMotionText);
 
         // **LRF Distance Label**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_lrf = &display_meta->text_params[label_index++];
-        txt_params_lrf->display_text = g_strdup_printf("LRF Distance: %.2f m", lrfDistance);
-        txt_params_lrf->x_offset = 10;
-        txt_params_lrf->y_offset = 90;
-        txt_params_lrf->font_params = txt_params_state->font_params;
-        txt_params_lrf->set_bg_clr = txt_params_state->set_bg_clr;
-        txt_params_lrf->text_bg_clr = txt_params_state->text_bg_clr;
-
+        char* displayLRFText =  g_strdup_printf("LRF: %.2f M", lrfDistance);
+        self->addTextToDisplayMeta(display_meta, 10, 630, displayLRFText);
+        g_free(displayLRFText);
         // **Detection Status Label**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_detection = &display_meta->text_params[label_index++];
-        txt_params_detection->display_text = g_strdup_printf("Detection: %s", detectionEnabled ? "On" : "Off");
-        txt_params_detection->x_offset = 10;
-        txt_params_detection->y_offset = 150; // Adjust as needed
-        txt_params_detection->font_params = txt_params_state->font_params;
-        txt_params_detection->set_bg_clr = txt_params_state->set_bg_clr;
-        txt_params_detection->text_bg_clr = txt_params_state->text_bg_clr;
 
+        char* displayDetectionText =  g_strdup_printf("DET: %s", detectionEnabled ? "ON" : "OFF");
+        self->addTextToDisplayMeta(display_meta, 500, 10, displayDetectionText);
+        g_free(displayDetectionText);
         // **Stabilization Status Label**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_stab = &display_meta->text_params[label_index++];
-        txt_params_stab->display_text = g_strdup_printf("Stabilization: %s", stabilizationEnabled ? "On" : "Off");
-        txt_params_stab->x_offset = 10;
-        txt_params_stab->y_offset = 180; // Adjust as needed
-        txt_params_stab->font_params = txt_params_state->font_params;
-        txt_params_stab->set_bg_clr = txt_params_state->set_bg_clr;
-        txt_params_stab->text_bg_clr = txt_params_state->text_bg_clr;
+        char* displayStabText =  g_strdup_printf("STAB: %s", stabilizationEnabled ? "ON" : "OFF");
+        self->addTextToDisplayMeta(display_meta, 650, 10, displayStabText);
+        g_free(displayStabText);
 
-        // **Display Gimbal Speed on OSD**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_speed = &display_meta->text_params[label_index++];
-        txt_params_speed->display_text = g_strdup_printf("Gimbal Speed: %.0f%%", gimbalSpeed);
+        NvDsDisplayMeta *display_meta1 = nvds_acquire_display_meta_from_pool(batch_meta);
+        display_meta1->num_labels = 0;
 
-        // Set text parameters (position, font, color)
-        txt_params_speed->x_offset = 10; // Adjust x position as needed
-        txt_params_speed->y_offset = 210; // Adjust y position as needed
-        txt_params_speed->font_params.font_name = "Serif";
-        txt_params_speed->font_params.font_size = 16;
-        txt_params_speed->font_params.font_color = fontColor; // White color
-        txt_params_speed->set_bg_clr = 1;
-        txt_params_speed->text_bg_clr = textBackgroundColor; // Semi-transparent black background
+        // **Display Azimuth on OSD**
+        azimuth = 254.6;
+        char* displayAZText =  g_strdup_printf("%.1f°", azimuth);
+        self->addTextToDisplayMeta(display_meta1, 815, 690, displayAZText);
+        g_free(displayAZText);
+        // **   FOV Label with Border Effect **
+        char* displayFOVText =  g_strdup_printf("FOV: %.0f°", elevation);
+        self->addTextToDisplayMeta(display_meta1, 600, 690, displayFOVText);
+        g_free(displayFOVText);
 
-        // **Display Fire Mode  on OSD**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_mode = &display_meta->text_params[label_index++];
+        // **   Gimbal Speed Label with Border Effect **
+        char* displaySpeedText =  g_strdup_printf("SPEED: %.0f%", gimbalSpeed);
+        self->addTextToDisplayMeta(display_meta1, 450, 690, displaySpeedText);
+        g_free(displaySpeedText);
 
+        // **   Fire Mode  on OSD Label with Border Effect **
+        char* displayFireModeText =   g_strdup_printf("%s", strMode);
+        self->addTextToDisplayMeta(display_meta1, 10, 660, displayFireModeText);
+        g_free(displayFireModeText);
 
+        // ** Active Camera Label **
+        char* displayCameraText =   g_strdup_printf("CAM: %s", activeCamera ? "DAY" : "THERMAL");
+        self->addTextToDisplayMeta(display_meta1, 800, 10, displayCameraText);
+        g_free(displayCameraText);
 
-        txt_params_mode->display_text = g_strdup_printf("Fire Mode: %s", strMode);
-
-        // Set text parameters (position, font, color)
-        txt_params_mode->x_offset = 10; // Adjust x position as needed
-        txt_params_mode->y_offset = 240; // Adjust y position as needed
-        txt_params_mode->font_params.font_name = "Serif";
-        txt_params_mode->font_params.font_size = 16;
-        txt_params_mode->font_params.font_color = fontColor; // White color
-        txt_params_mode->set_bg_clr = 1;
-        txt_params_mode->text_bg_clr = textBackgroundColor; // Semi-transparent black background
-
-        // ** Active Camera Label**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_camera = &display_meta->text_params[label_index++];
-        txt_params_camera->display_text = g_strdup_printf("Camera: %s", activeCamera ? "DAY" : "THERMAL");
-        txt_params_camera->x_offset = 10;
-        txt_params_camera->y_offset = 270; // Adjust as needed
-        txt_params_camera->font_params = txt_params_state->font_params;
-        txt_params_camera->set_bg_clr = txt_params_state->set_bg_clr;
-        txt_params_camera->text_bg_clr = txt_params_state->text_bg_clr;
-
-
+        NvDsDisplayMeta *display_meta2 = nvds_acquire_display_meta_from_pool(batch_meta);
+        display_meta2->num_labels = 0;
 
         // **CHARGED Status Label**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_charged = &display_meta->text_params[label_index++];
-        txt_params_charged->display_text = g_strdup_printf("CHARGED: %s", ammunitionLoadState ? "CHARGED" : "-");
-        txt_params_charged->x_offset = 10;
-        txt_params_charged->y_offset = 320; // Adjust as needed
-        txt_params_charged->font_params = txt_params_state->font_params;
-        txt_params_charged->set_bg_clr = txt_params_state->set_bg_clr;
-        txt_params_charged->text_bg_clr = txt_params_state->text_bg_clr;
+        char* displayChargedText =   g_strdup_printf("CHARGED %s", ammunitionLoadState ? "CHARGED" : "");
+        self->addTextToDisplayMeta(display_meta2, 10, 690, displayChargedText);
+        g_free(displayChargedText);
 
         // **ARMED Status Label**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_armed = &display_meta->text_params[label_index++];
-        txt_params_armed->display_text = g_strdup_printf("ARMED: %s", gunArmedState ? "ARMED" : "-");
-        txt_params_armed->x_offset = 10;
-        txt_params_armed->y_offset = 350; // Adjust as needed
-        txt_params_armed->font_params = txt_params_state->font_params;
-        txt_params_armed->set_bg_clr = txt_params_state->set_bg_clr;
-        txt_params_armed->text_bg_clr = txt_params_state->text_bg_clr;
+        char* displayArmedText =   g_strdup_printf("ARMED %s", gunArmedState ? "ARMED" : "");
+        self->addTextToDisplayMeta(display_meta2, 120, 690, displayArmedText);
+        g_free(displayArmedText);
 
         // **READY Status Label**
-        display_meta->num_labels++;
-        NvOSD_TextParams *txt_params_ready = &display_meta->text_params[label_index++];
-        txt_params_ready->display_text = g_strdup_printf("READY: %s", readyState ? "READY" : "-");
-        txt_params_ready->x_offset = 10;
-        txt_params_ready->y_offset = 380; // Adjust as needed
-        txt_params_ready->font_params = txt_params_state->font_params;
-        txt_params_ready->set_bg_clr = txt_params_state->set_bg_clr;
-        txt_params_ready->text_bg_clr = txt_params_state->text_bg_clr;
+        char* displayReadyText =   g_strdup_printf("READY %s", readyState ? "READY" : "");
+        self->addTextToDisplayMeta(display_meta2, 210, 690, displayReadyText);
+        g_free(displayReadyText);
+
+        int highPointX = 900;
+        int highPointY = 470;
+        int lowPointX = 900;
+        int lowPointY = 570;
+        int heightGauge = lowPointY - highPointY;
+        double elevationDegrees = -8.3;
+        double elevationRadians = elevationDegrees * M_PI / 180.0;
+        int elevationX = highPointX - 8;
+        int elevationY   = 0;
+        if (elevationDegrees >=0){
+            elevationY   =  highPointY + ((60 - elevationDegrees)/60) * 0.75 * heightGauge;
+        }
+        else {
+            elevationY   =  lowPointY - ((20 - abs(elevationDegrees))/20) * 0.25 * heightGauge;
+        }
+
+        int delta = 7;
+        int pad = 6;
+
+        // **Elevation gauge Labels**
+        char* displayMaxElText =   g_strdup_printf(" 60°");
+        self->addTextToDisplayMeta(display_meta2, highPointX + 2, highPointY - 15, displayMaxElText);
+        g_free(displayMaxElText);
+        char* displayMinElText =   g_strdup_printf("-20°");
+        self->addTextToDisplayMeta(display_meta2, lowPointX + 2, lowPointY - 20, displayMinElText);
+        g_free(displayMinElText);
 
 
-        // **Draw Crosshair**
+        NvDsDisplayMeta *display_meta3 = nvds_acquire_display_meta_from_pool(batch_meta);
+
+        display_meta3->num_labels = 0;
+        display_meta3->num_lines = 0;
+
+        char* displayZeroElText =   g_strdup_printf(" 0°");
+        self->addTextToDisplayMeta(display_meta3, lowPointX + 2, highPointY + 0.75 * heightGauge  - 15, displayZeroElText);
+        g_free(displayZeroElText);
+
+        char* displayElText =   g_strdup_printf("%.1f°", elevationDegrees);
+        self->addTextToDisplayMeta(display_meta3, elevationX - 60, elevationY - delta-5, displayElText);
+        g_free(displayElText);
+
+        NvDsDisplayMeta *display_meta4 = nvds_acquire_display_meta_from_pool(batch_meta);
+
+        display_meta4->num_labels = 0;
+        display_meta4->num_lines = 0;
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   highPointX, highPointY+4,
+                                   lowPointX, lowPointY-4,
+                                   6, self->shadowLineColor);
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   lowPointX , highPointY + 0.75 * heightGauge,
+                                   lowPointX + pad, highPointY + 0.75 * heightGauge,
+                                   4, self->shadowLineColor);
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   highPointX, highPointY+4,
+                                   lowPointX, lowPointY-4,
+                                   4, self->lineColor);
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   highPointX - pad, highPointY,
+                                   highPointX + pad, highPointY,
+                                   4, self->shadowLineColor);
+        self->addLineToDisplayMeta(display_meta4,
+                                   highPointX - pad, highPointY,
+                                   highPointX + pad, highPointY,
+                                   2, self->lineColor);
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   lowPointX - pad, lowPointY,
+                                   lowPointX + pad, lowPointY,
+                                   4, self->shadowLineColor);
+        self->addLineToDisplayMeta(display_meta4,
+                                   lowPointX - pad, lowPointY,
+                                   lowPointX + pad, lowPointY,
+                                   2, self->lineColor);
+
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   lowPointX , highPointY + 0.75 * heightGauge,
+                                   lowPointX + pad, highPointY + 0.75 * heightGauge,
+                                   2, self->lineColor);
+
+
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   elevationX, elevationY,
+                                   elevationX - delta +2, elevationY - delta+2,
+                                   4, self->shadowLineColor);
+        self->addLineToDisplayMeta(display_meta4,
+                                   elevationX, elevationY,
+                                   elevationX - delta +2, elevationY + delta-2,
+                                   4, self->shadowLineColor);
+        self->addLineToDisplayMeta(display_meta4,
+                                   elevationX - delta, elevationY - delta ,
+                                   elevationX - delta , elevationY + delta,
+                                   4, self->shadowLineColor);
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   elevationX, elevationY,
+                                   elevationX - delta +2, elevationY - delta+2,
+                                   2, self->lineColor);
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   elevationX, elevationY,
+                                   elevationX - delta +2, elevationY + delta-2,
+                                   2, self->lineColor);
+
+        self->addLineToDisplayMeta(display_meta4,
+                                   elevationX - delta, elevationY - delta ,
+                                   elevationX - delta , elevationY + delta,
+                                   2, self->lineColor);
+
         int frame_width = frame_meta->source_frame_width;
         int frame_height = frame_meta->source_frame_height;
-        int line_index = 0;
 
-        // Horizontal line
-        display_meta->num_lines++;
-        NvOSD_LineParams *line_params_h = &display_meta->line_params[line_index++];
-        line_params_h->x1 = frame_width / 2 - 20;
-        line_params_h->y1 = frame_height / 2;
-        line_params_h->x2 = frame_width / 2 + 20;
-        line_params_h->y2 = frame_height / 2;
-        line_params_h->line_width = 2;
-        line_params_h->line_color = fontColor; // White
 
-        // Vertical line
-        display_meta->num_lines++;
-        NvOSD_LineParams *line_params_v = &display_meta->line_params[line_index++];
-        line_params_v->x1 = frame_width / 2;
-        line_params_v->y1 = frame_height / 2 - 20;
-        line_params_v->x2 = frame_width / 2;
-        line_params_v->y2 = frame_height / 2 + 20;
-        line_params_v->line_width = 2;
-        line_params_v->line_color = fontColor; // White
+        NvDsDisplayMeta *display_meta5 = nvds_acquire_display_meta_from_pool(batch_meta);
+
+        display_meta5->num_lines = 0;
+
+
+        // **Draw Azimuth Line**
+        double azimuthDegrees = 120;//self->m_dataModel->getAzimuth(); // Implement this method
+        double azimuthRadians = azimuthDegrees * M_PI / 180.0;
+        int centerX = 900;
+        int centerY = 650;
+        int radius = 45;
+        int azimuthEndX = centerX + radius * sin(azimuthRadians);
+        int azimuthEndY = centerY - radius * cos(azimuthRadians);
+
+
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX, centerY - radius,
+                                   centerX, centerY - radius -15,
+                                   4, self->shadowLineColor);
+
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX, centerY + radius + 5 ,
+                                   centerX, centerY + radius + 15 ,
+                                   4, self->shadowLineColor);
+
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX- radius - 5, centerY ,
+                                   centerX- radius -15, centerY ,
+                                   4, self->shadowLineColor);
+
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX + radius + 5 , centerY,
+                                   centerX + radius + 15 , centerY,
+                                   4, self->shadowLineColor);
+
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX, centerY,
+                                   azimuthEndX, azimuthEndY,
+                                   4, self->shadowLineColor);
+
+
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX, centerY - radius,
+                                   centerX, centerY - radius -15,
+                                   2, self->lineColor);
+
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX, centerY + radius + 5 ,
+                                   centerX, centerY + radius + 15 ,
+                                   2, self->lineColor);
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX- radius - 5, centerY ,
+                                   centerX- radius -15, centerY ,
+                                   2, self->lineColor);
+
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX + radius + 5 , centerY,
+                                   centerX + radius + 15 , centerY,
+                                   2, self->lineColor);
+        self->addLineToDisplayMeta(display_meta5,
+                                   centerX, centerY,
+                                   azimuthEndX, azimuthEndY,
+                                   2, self->lineColor);
+
+
+
+
+
+        int numSegments = 26; // Number of segments to approximate the circle
+        for (int i = 0; i < numSegments; ++i) {
+            double angle1 = (double)i * 2 * M_PI / numSegments;
+            double angle2 = (double)(i + 1) * 2 * M_PI / numSegments;
+
+            int x1 = centerX + (radius + 5)  * cos(angle1);
+            int y1 = centerY + (radius + 5)  * sin(angle1);
+            int x2 = centerX + (radius + 5)  * cos(angle2);
+            int y2 = centerY + (radius + 5)  * sin(angle2);
+
+            // Draw line segment from (x1, y1) to (x2, y2)
+            self->addLineToDisplayMeta(display_meta5,
+                                       x1, y1,
+                                       x2, y2,
+                                       5, self->shadowLineColor);
+        }
+
+        for (int i = 0; i < numSegments; ++i) {
+            double angle1 = (double)i * 2 * M_PI / numSegments;
+            double angle2 = (double)(i + 1) * 2 * M_PI / numSegments;
+
+            int x1 = centerX + (radius + 5)  * cos(angle1);
+            int y1 = centerY + (radius + 5)  * sin(angle1);
+            int x2 = centerX + (radius + 5)  * cos(angle2);
+            int y2 = centerY + (radius + 5)  * sin(angle2);
+
+            // Draw line segment from (x1, y1) to (x2, y2)
+            self->addLineToDisplayMeta(display_meta5,
+                                       x1, y1,
+                                       x2, y2,
+                                       3, self->lineColor );
+        }
+
+        NvDsDisplayMeta *display_meta6 = nvds_acquire_display_meta_from_pool(batch_meta);
+
+
+        display_meta6->num_labels = 0;
+        display_meta6->num_lines = 0;
+        //crosshair
+        centerX = frame_meta->source_frame_width / 2; // Center X
+        centerY = frame_meta->source_frame_height / 2; // Center Y
+        int reticle_type = 3;
+        if (reticle_type ==1){
+            int length = 120; // Length of each line of the crosshair
+
+
+            // Draw Horizontal Line (Left Bracket)
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - (length / 2), centerY, centerX - 15, centerY,
+                                       4,  self->shadowLineColor);
+
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - (length / 2), centerY, centerX - 15, centerY,
+                                       2, self->lineColor);
+            // Draw Horizontal Line (Right Bracket)
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + 15, centerY, centerX + (length / 2), centerY,
+                                       4,  self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + 15, centerY, centerX + (length / 2), centerY,
+                                       2, self->lineColor );
+            // Vertical Line (Bottom)
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX, centerY + 10, centerX, centerY + ((length-30) / 2),
+                                       4,  self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX, centerY + 10, centerX, centerY + ((length-30) / 2),
+                                       2, self->lineColor );
+            // Brackets
+            int bracketSize = 30; // Size of each bracket arm
+            int bracketThickness = 2; // Line thickness of the bracket
+            int x_offsetFromCenter = 150; // Offset from the crosshair center
+            int offsetFromCenter = 120; // Offset from the crosshair center
+
+            // Top-left bracket
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - x_offsetFromCenter, centerY - offsetFromCenter,
+                                       centerX - x_offsetFromCenter + bracketSize, centerY - offsetFromCenter,
+                                       bracketThickness + 2, self->shadowLineColor);
+
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - x_offsetFromCenter, centerY - offsetFromCenter,
+                                       centerX - x_offsetFromCenter, centerY - offsetFromCenter + bracketSize,
+                                       bracketThickness + 2, self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - x_offsetFromCenter, centerY - offsetFromCenter,
+                                       centerX - x_offsetFromCenter + bracketSize, centerY - offsetFromCenter,
+                                       bracketThickness , self->lineColor);
+
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - x_offsetFromCenter, centerY - offsetFromCenter,
+                                       centerX - x_offsetFromCenter, centerY - offsetFromCenter + bracketSize,
+                                       bracketThickness , self->lineColor);
+            // Top-right bracket
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + x_offsetFromCenter, centerY - offsetFromCenter,
+                                       centerX + x_offsetFromCenter - bracketSize, centerY - offsetFromCenter,
+                                       bracketThickness + 2, self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + x_offsetFromCenter, centerY - offsetFromCenter,
+                                       centerX + x_offsetFromCenter, centerY - offsetFromCenter + bracketSize,
+                                       bracketThickness + 2, self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + x_offsetFromCenter, centerY - offsetFromCenter,
+                                       centerX + x_offsetFromCenter - bracketSize, centerY - offsetFromCenter,
+                                       bracketThickness  , self->lineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + x_offsetFromCenter, centerY - offsetFromCenter,
+                                       centerX + x_offsetFromCenter, centerY - offsetFromCenter + bracketSize,
+                                       bracketThickness , self->lineColor);
+            // Bottom-left bracket
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - x_offsetFromCenter, centerY + offsetFromCenter,
+                                       centerX - x_offsetFromCenter + bracketSize, centerY + offsetFromCenter,
+                                       bracketThickness + 2, self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - x_offsetFromCenter, centerY + offsetFromCenter,
+                                       centerX - x_offsetFromCenter, centerY + offsetFromCenter - bracketSize,
+                                       bracketThickness + 2, self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - x_offsetFromCenter, centerY + offsetFromCenter,
+                                       centerX - x_offsetFromCenter + bracketSize, centerY + offsetFromCenter,
+                                       bracketThickness , self->lineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - x_offsetFromCenter, centerY + offsetFromCenter,
+                                       centerX - x_offsetFromCenter, centerY + offsetFromCenter - bracketSize,
+                                       bracketThickness , self->lineColor);
+            // Bottom-right bracket
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + x_offsetFromCenter, centerY + offsetFromCenter,
+                                       centerX + x_offsetFromCenter - bracketSize, centerY + offsetFromCenter,
+                                       bracketThickness + 2, self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + x_offsetFromCenter, centerY + offsetFromCenter,
+                                       centerX + x_offsetFromCenter, centerY + offsetFromCenter - bracketSize,
+                                       bracketThickness + 2, self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + x_offsetFromCenter, centerY + offsetFromCenter,
+                                       centerX + x_offsetFromCenter - bracketSize, centerY + offsetFromCenter,
+                                       bracketThickness, self->lineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + x_offsetFromCenter, centerY + offsetFromCenter,
+                                       centerX + x_offsetFromCenter, centerY + offsetFromCenter - bracketSize,
+                                       bracketThickness, self->lineColor);
+        }
+        else if(reticle_type==2){
+            int length = 100; // Length of each line of the crosshair
+            int space = 30;
+
+
+            // Draw Horizontal Line (Left Bracket)
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - (length / 2), centerY, centerX - space, centerY,
+                                       4,  self->shadowLineColor);
+
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - (length / 2), centerY, centerX - space, centerY,
+                                       2, self->lineColor);
+            // Draw Horizontal Line (Right Bracket)
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + space, centerY, centerX + (length / 2), centerY,
+                                       4,  self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + space, centerY, centerX + (length / 2), centerY,
+                                       2, self->lineColor );
+            // Vertical Line (Top)
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX, centerY - space, centerX, centerY - ((length) / 2),
+                                       4,  self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX, centerY - space, centerX, centerY - ((length) / 2),
+                                       2, self->lineColor );
+            // Vertical Line (Bottom)
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX, centerY + space, centerX, centerY + ((length) / 2),
+                                       4,  self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX, centerY + space, centerX, centerY + ((length) / 2),
+                                       2, self->lineColor );
+
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - length, centerY -3, centerX - length, centerY + 3,
+                                       4,  self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - length, centerY -3, centerX - length, centerY + 3,
+                                       2, self->lineColor );
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + length, centerY -3, centerX + length, centerY + 3,
+                                       4,  self->shadowLineColor);
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + length, centerY -3, centerX + length, centerY + 3,
+                                       2, self->lineColor );
+
+
+
+
+
+        }
+    else if (reticle_type==3){
+            const double FOV_DEGREES = 6;  // Wide Field of View (horizontal, in degrees)
+            const int RESOLUTION_HEIGHT = 720; // Vertical resolution of the frame
+            const int RESOLUTION_WIDTH = 1280; // Horizontal resolution of the frame
+            double pixels_per_degree = 20.09;  //Wide: 1280 px/63.7°≈20.09pixels/degree
+            QVector<QPair<double, double>> dropData = {
+                {100, 0.05},   // Example: Range 100m, Drop 0.2m
+                {200, 0.37},   // Example: Range 200m, Drop 0.8m
+                {300, 0.9},    // Example: Range 300m, Drop 1.8m
+                {400, 1.5},   // Example: Range 100m, Drop 0.2m
+                {500, 2.28},   // Example: Range 200m, Drop 0.8m
+                {600, 3.21}    // Example: Range 300m, Drop 1.8m
+            };
+            for (const auto &data : dropData) {
+                double rangeMeters = data.first; // Range (e.g., 100m, 200m)
+                double dropMeters = data.second; // Drop (in meters)
+                double dropAngleRadians = atan(dropMeters / rangeMeters); // Drop angle in radians
+                double dropAngleDegrees = dropAngleRadians * (180.0 / M_PI); // Convert to degrees
+
+                // Convert to pixels using FOV and vertical resolution
+                int pixelOffset = static_cast<int>((dropAngleDegrees / FOV_DEGREES) * RESOLUTION_HEIGHT);
+                int reticleY = centerY + pixelOffset;
+                self->addLineToDisplayMeta(display_meta6,
+                                           centerX -3 , reticleY, centerX +3 , reticleY,
+                                           4, self->shadowLineColor );
+                self->addLineToDisplayMeta(display_meta6,
+                                           centerX -3 , reticleY, centerX +3 , reticleY,
+                                           2, self->lineColor );
+
+                // Add range label
+                //painter.drawText(centerX + 15, reticleY + 5, QString::number(static_cast<int>(rangeMeters)) + "m");
+
+
+                /*char* displayrangeMetersText =   g_strdup_printf(" %.0f", rangeMeters);
+                self->addTextToDisplayMeta(display_meta3, centerX + 15, reticleY + 5, displayrangeMetersText);
+                g_free(displayrangeMetersText);*/
+            }
+        }
 
         // **Add the Display Meta to the Frame**
         nvds_add_display_meta_to_frame(frame_meta, display_meta);
-
+        nvds_add_display_meta_to_frame(frame_meta, display_meta1);
+        nvds_add_display_meta_to_frame(frame_meta, display_meta2);
+        nvds_add_display_meta_to_frame(frame_meta, display_meta3);
+        nvds_add_display_meta_to_frame(frame_meta, display_meta4);
+        nvds_add_display_meta_to_frame(frame_meta, display_meta5);
+        nvds_add_display_meta_to_frame(frame_meta, display_meta6);
         // **General Overlay End**
 
         // Apply mode-specific display logic
@@ -699,21 +1061,53 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
             {
                 NvDsObjectMeta *obj_meta = (NvDsObjectMeta *)(l_obj->data);
 
-                // Check if the object's class is in the allowed list
-                //if (allowed_classes.find(obj_meta->class_id) != allowed_classes.end())
-                //{
-                    // Set display text to class name
-                    if (obj_meta->text_params.display_text)
+                // Set display text to class name
+                if (obj_meta->text_params.display_text)
+                {
+                    g_free(obj_meta->text_params.display_text);
+                }
+                obj_meta->text_params.display_text = g_strdup(obj_meta->obj_label);
+                obj_meta->text_params.font_params = self->textFontParam;
+
+                // ** Add Shadow Effect **
+                NvOSD_RectParams *rect_params = &obj_meta->rect_params;
+
+                // Store original bbox values
+                float orig_left = rect_params->left;
+                float orig_top = rect_params->top;
+                float orig_width = rect_params->width;
+                float orig_height = rect_params->height;
+
+                // Shadow color
+                NvOSD_ColorParams shadow_color = {0.0, 0.0, 0.0, 0.5}; // Semi-transparent black
+
+                // Render shadow by drawing slightly larger rectangles underneath
+                /*for (int dx = -1; dx <= 1; ++dx)
+                {
+                    for (int dy = -1; dy <= 1; ++dy)
                     {
-                        g_free(obj_meta->text_params.display_text);
+                        if (dx != 0 || dy != 0) // Skip the original position
+                        {
+                            NvDsDisplayMeta *shadow_meta = nvds_acquire_display_meta_from_pool(batch_meta);
+
+                            NvOSD_RectParams shadow_rect = *rect_params; // Copy original params
+                            shadow_rect.left = orig_left + dx;           // Offset X
+                            shadow_rect.top = orig_top + dy;             // Offset Y
+                            shadow_rect.border_width = 1;
+                            shadow_rect.border_color = self->shadowLineColor;
+                            shadow_rect.has_bg_color = 0;
+                            shadow_rect.bg_color = shadow_color;
+
+                            // Add shadow rect to display meta
+                            shadow_meta->rect_params[shadow_meta->num_rects++] = shadow_rect;
+                            nvds_add_display_meta_to_frame(frame_meta, shadow_meta);
+                        }
                     }
-                    obj_meta->text_params.display_text = g_strdup(obj_meta->obj_label);
-                //}
-                //else
-                //{
-                    // Mark object meta for removal
-                   // objs_to_remove.push_back(obj_meta);
-                //}
+                }*/
+
+                // ** Render Main Bounding Box **
+                //rect_params->border_color = self->lineColor; // Main color (e.g., red)
+                rect_params->border_width = 2;              // Border width
             }
 
             // Remove unwanted object metadata
@@ -751,23 +1145,34 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
                         g_free(obj_meta->text_params.display_text);
                     }
                     obj_meta->text_params.display_text = g_strdup_printf("%s ID:%lu", obj_meta->obj_label, obj_meta->object_id);
-
+                    obj_meta->text_params.font_params = self->textFontParam;
+                    obj_meta->rect_params.border_width = 1;
+                    obj_meta->rect_params.border_color = self->fontColor;
                     // Highlight selected object
                     if (self->selectedTrackId == obj_meta->object_id)
                     {
                         // Change bounding box color and border width
                         obj_meta->rect_params.border_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Red
-                        obj_meta->rect_params.border_width = 2;
 
-                        // Draw line from center to object's center
                         NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
                         display_meta->num_lines = 1;
                         display_meta->line_params[0].x1 = frame_meta->source_frame_width / 2;
                         display_meta->line_params[0].y1 = frame_meta->source_frame_height / 2;
                         display_meta->line_params[0].x2 = obj_meta->rect_params.left + obj_meta->rect_params.width / 2;
                         display_meta->line_params[0].y2 = obj_meta->rect_params.top + obj_meta->rect_params.height / 2;
+                        display_meta->line_params[0].line_width = 3;
+                        display_meta->line_params[0].line_color = (NvOSD_ColorParams){0.0, 0.0, 0.0, 0.65}; // Green
+
+                        // Draw line from center to object's center
+                        //NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
+                        display_meta->num_lines = 2;
+                        display_meta->line_params[0].x1 = frame_meta->source_frame_width / 2;
+                        display_meta->line_params[0].y1 = frame_meta->source_frame_height / 2;
+                        display_meta->line_params[0].x2 = obj_meta->rect_params.left + obj_meta->rect_params.width / 2;
+                        display_meta->line_params[0].y2 = obj_meta->rect_params.top + obj_meta->rect_params.height / 2;
                         display_meta->line_params[0].line_width = 1;
                         display_meta->line_params[0].line_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Green
+
                         nvds_add_display_meta_to_frame(frame_meta, display_meta);
 
                         // **Calculate Target Angles Adjusted for Cropping**
@@ -861,7 +1266,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         case MODE_MANUAL_TRACKING:
         {
             // Remove all detection/tracking metadata
-           //clear_obj_meta_list(frame_meta);
+            clear_obj_meta_list(frame_meta);
 
             // Add manual tracking bounding box if enabled
             //if (self->manualTrackingEnabled)
@@ -973,7 +1378,12 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
             break;
         } // End of switch-case
     } // End of frame loop
+    auto end = std::chrono::high_resolution_clock::now();
 
+    // Calculate the elapsed time in microseconds
+    auto elapsedTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    if (elapsedTimeUs > 2000)
+        std::cout << "Processing time: " << elapsedTimeUs << " microseconds (" <<   std::endl;
 
     return GST_PAD_PROBE_OK;
 }
@@ -998,6 +1408,51 @@ void CameraPipelineDay::clear_obj_meta_list(NvDsFrameMeta *frame_meta)
         nvds_remove_obj_meta_from_frame(frame_meta, obj_meta);
     }
 }
+
+
+// Function to add a line to the display meta
+void CameraPipelineDay::addLineToDisplayMeta(NvDsDisplayMeta *display_meta,
+                                                     int x1, int y1, int x2, int y2,
+                                                     int line_width, NvOSD_ColorParams color) {
+
+    NvOSD_LineParams *main_line_params = &display_meta->line_params[display_meta->num_lines++];
+    main_line_params->x1 = x1;
+    main_line_params->y1 = y1;
+    main_line_params->x2 = x2;
+    main_line_params->y2 = y2;
+    main_line_params->line_width = line_width;
+    main_line_params->line_color = color;
+}
+
+
+// Function to add a line to the display meta
+// Function to add a line to the display meta
+void CameraPipelineDay::addTextToDisplayMeta(NvDsDisplayMeta *display_meta,
+                                             int x, int y, const char *textChar) {
+    // Label with Border Effect
+    for (int dx = -1; dx <= 1; ++dx) {
+        for (int dy = -1; dy <= 1; ++dy) {
+            if (dx != 0 || dy != 0) { // Skip the center position
+                NvOSD_TextParams *border_params = &display_meta->text_params[display_meta->num_labels++];
+                border_params->display_text = g_strdup(textChar); // Copy text
+                border_params->x_offset = x + dx; // Offset X
+                border_params->y_offset = y + dy; // Offset Y
+                border_params->font_params = textFontParam;
+                border_params->font_params.font_color = textShadowColor;
+                border_params->set_bg_clr = 0; // No background for border
+            }
+        }
+    }
+
+    // Draw the actual text (main layer)
+    NvOSD_TextParams *txt_params = &display_meta->text_params[display_meta->num_labels++];
+    txt_params->display_text = g_strdup(textChar); // Copy text
+    txt_params->x_offset = x; // Central position
+    txt_params->y_offset = y;
+    txt_params->font_params = textFontParam; // White color
+    txt_params->set_bg_clr = 0;
+}
+
 
 void CameraPipelineDay::setSelectedTrackId(int trackId)
 {

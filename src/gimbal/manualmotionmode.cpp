@@ -1,21 +1,16 @@
 #include "include/gimbal/manualmotionmode.h"
 #include "include/gimbal/gimbalcontroller.h"
-#include "include/gimbal/gimbalmotordriver.h"
+
 #include <QDebug>
 #include <Eigen/Dense>
 
 ManualMotionMode::ManualMotionMode(QObject *parent)
-    : QObject(parent),
-    m_azimuth(0.0),
-    m_elevation(0.0)
+    : QObject(parent)
 {
 }
 
 void ManualMotionMode::enter(GimbalController* controller) {
     qDebug() << "Entering Manual Motion Mode";
-    // Initialize positions
-    m_azimuth = controller->getAzimuthPosition();
-    m_elevation = controller->getElevationPosition();
 }
 
 void ManualMotionMode::exit(GimbalController* controller) {
@@ -24,43 +19,58 @@ void ManualMotionMode::exit(GimbalController* controller) {
 
 void ManualMotionMode::handleJoystickInput(GimbalController* controller, int axis, float value)
 {
-    // Store the joystick input values
     if (axis == 0) { // Azimuth axis
-        m_azimuthInput = value;
+        m_azimuthJoystickInput = value;
     } else if (axis == 1) { // Elevation axis
-        m_elevationInput = value;
+        m_elevationJoystickInput = value;
     }
 }
 
 
 void ManualMotionMode::update(GimbalController* controller) {
-    // Define maximum angular velocity (degrees per second)
-    const float maxAngularVelocity = 100.0f; // Adjust as needed
+    // Access DataModel from the controller
+    DataModel* dataModel = controller->getDataModel();
+
+    // Check if the station state is ON
+    if (!dataModel->getStationState()) {
+        // Station is OFF; do not send movement commands
+        qDebug() << "Station state is OFF. Gimbal movement is disabled.";
+        return;
+    }
+
+    // Check if the dead man switch (joystick button 4) is active
+    if (!dataModel->getDeadManSwitchState()) {
+        // Dead man switch is not active; do not send movement commands
+        qDebug() << "Dead man switch is not active. Gimbal movement is disabled.";
+        return;
+    }
+
+    // Set maxAngularVelocity based on the speed switch
+    float maxAngularVelocity = dataModel->getSpeedSw(); // Degrees per second
 
     // Compute desired angular velocities from joystick inputs
-    float desiredAngularVelocityAzimuth = m_azimuthInput * maxAngularVelocity;
-    float desiredAngularVelocityElevation = m_elevationInput * maxAngularVelocity;
+    float desiredAngularVelocityAzimuth = m_azimuthJoystickInput * maxAngularVelocity;
+    float desiredAngularVelocityElevation = m_elevationJoystickInput * maxAngularVelocity;
 
     // Initialize stabilization corrections
     float stabilizationAngularVelocityAzimuth = 0.0f;
     float stabilizationAngularVelocityElevation = 0.0f;
 
     // Get stabilization corrections if enabled
-    SensorSystem* sensorSystem = controller->getSensorSystem();
-    if (sensorSystem && controller->isStabilizationEnabled()) {
+    if (dataModel->getStabilizationSw()) {
         // Get gyroscope angular rates (degrees per second)
         double gyroAngularRateRoll;    // p (roll rate)
         double gyroAngularRatePitch;   // q (pitch rate)
         double gyroAngularRateYaw;     // r (yaw rate)
 
-        sensorSystem->getGyroRates(gyroAngularRateRoll, gyroAngularRatePitch, gyroAngularRateYaw);
+        dataModel->getGyroOrientation(gyroAngularRateRoll, gyroAngularRatePitch, gyroAngularRateYaw);
 
         // Convert angular rates to vector
         Eigen::Vector3d omega_body(gyroAngularRateRoll, gyroAngularRatePitch, gyroAngularRateYaw);
 
         // Get current gimbal angles (degrees)
-        double azimuthAngle = controller->getAzimuthPosition();    // α
-        double elevationAngle = controller->getElevationPosition(); // ε
+        double azimuthAngle = dataModel->getGimbalAzimuthUpdated();    // α
+        double elevationAngle = dataModel->getGimbalElevationUpdated(); // ε
 
         // Convert angles to radians
         double alpha = azimuthAngle * (M_PI / 180.0);
@@ -100,9 +110,32 @@ void ManualMotionMode::update(GimbalController* controller) {
     float commandAngularVelocityAzimuth = desiredAngularVelocityAzimuth + stabilizationAngularVelocityAzimuth;
     float commandAngularVelocityElevation = desiredAngularVelocityElevation + stabilizationAngularVelocityElevation;
 
-    // Apply limits
+    // Apply limits to angular velocities
     commandAngularVelocityAzimuth = std::clamp(commandAngularVelocityAzimuth, -maxAngularVelocity, maxAngularVelocity);
     commandAngularVelocityElevation = std::clamp(commandAngularVelocityElevation, -maxAngularVelocity, maxAngularVelocity);
+
+    // Get current elevation angle
+    double elevationAngle = dataModel->getGimbalElevationUpdated();
+
+    // Elevation angle limits
+    const double minElevationAngle = -15.0; // Degrees
+    const double maxElevationAngle = 50.0;  // Degrees
+
+    // Check limit sensors
+    bool upperLimitSensorActivated = dataModel->getStationUpperSensor();
+    bool lowerLimitSensorActivated = dataModel->getStationLowerSensor();
+
+    // Prevent movement beyond upper elevation limit
+    if ((elevationAngle >= maxElevationAngle || upperLimitSensorActivated) && commandAngularVelocityElevation > 0) {
+        commandAngularVelocityElevation = 0.0f;
+        qDebug() << "Upper elevation limit reached or sensor activated. Preventing upward movement.";
+    }
+
+    // Prevent movement beyond lower elevation limit
+    if ((elevationAngle <= minElevationAngle || lowerLimitSensorActivated) && commandAngularVelocityElevation < 0) {
+        commandAngularVelocityElevation = 0.0f;
+        qDebug() << "Lower elevation limit reached or sensor activated. Preventing downward movement.";
+    }
 
     // Convert angular velocities to motor commands
     const int stepsPerRevolution = 3200; // Adjust based on your motor's specifications
@@ -130,7 +163,5 @@ void ManualMotionMode::update(GimbalController* controller) {
     }
 }
 
-void ManualMotionMode::onTargetPositionUpdated(double azimuth, double elevation) {
-    //m_targetAzimuth = azimuth;
-    //m_targetElevation = elevation;
-}
+
+

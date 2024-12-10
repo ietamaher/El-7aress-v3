@@ -68,9 +68,4 @@ void SurveillanceState::setDetectionEnabled(bool enabled) {
     }
 }
 
-void SurveillanceState::setStabilizationEnabled(bool enabled) {
-    stabilizationEnabled = enabled;
-    if (manager->getGimbalController()) {
-        manager->getGimbalController()->setStabilizationEnabled(enabled);
-    }
-}
+

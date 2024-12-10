@@ -5,12 +5,12 @@ DataModel::DataModel(QObject *parent)
       m_lrfDistance(0.0),
       m_azimuthAngle(0.0),
       m_elevationAngle(0.0),
-      m_gimbalSpeed(0.0),
-    m_gunEnabled(false),
+     m_gunEnabled(false),
+    m_detectionEnabled(false),
     m_fireMode(FireMode::SingleShot),
     m_loadAmmunition(false),
     m_stationState(false),
-    m_speedSw(false),
+    m_speedSw(2),
     m_homeSw(false),
     m_stabilizationSw(false),
     m_authorizeSw(false),
@@ -54,11 +54,6 @@ void DataModel::setLRFDistance(double distance) {
 }
 
 
-
-void DataModel::setGimbalSpeed(double speed) {
-    QMutexLocker locker(&m_mutex);
-    m_gimbalSpeed = speed;
-}
 
 void DataModel::setCrosshairPosition(const QPointF &position) {
     QMutexLocker locker(&m_mutex);
@@ -127,15 +122,7 @@ double DataModel::getLRFDistance() {
     return m_lrfDistance;
 }
 
-void DataModel::setGimbalOrientation(double azimuth, double elevation) {
-    QMutexLocker locker(&m_mutex);
-    if (azimuth >= 0.0 && azimuth <= 360.0) {
-        m_azimuthAngle = azimuth;
-    }
-    if (elevation >= -90.0 && elevation <= 90.0) {
-        m_elevationAngle = elevation;
-    }
-}
+
 
 void DataModel::setGunEnabled(bool enabled)
 {
@@ -330,19 +317,34 @@ void DataModel::setReticleStyle(const QString &style) {
     }
 }
 
+void DataModel::setDeadManSwitchState(bool state) {
+    if (m_deadManSwitchState != state) {
+        m_deadManSwitchState = state;
+        emit deadManSwitchStateChanged(state);
+    }
+}
+
+void DataModel::setGimbalAzimuthUpdated(double azimuth)
+{
+    QMutexLocker locker(&m_mutex);
+    if (azimuth >= 0.0 && azimuth <= 360.0) {
+        m_azimuthAngle = azimuth;
+    }
+
+}
+
+void DataModel::setGimbalElevationUpdated(double elevation)
+{
+    if (elevation >= -10.0 && elevation <= 50.0) {
+        m_elevationAngle = elevation;
+    }
+}
+
 
 /* GETTERS */
 
-double DataModel::getGimbalSpeed() {
-    QMutexLocker locker(&m_mutex);
-    return m_gimbalSpeed;
-}
 
-void DataModel::getGimbalOrientation(double &azimuth, double &elevation) {
-    QMutexLocker locker(&m_mutex);
-    azimuth = m_azimuthAngle;
-    elevation =  m_elevationAngle;
-}
+
 QPointF DataModel::getCrosshairPosition() {
     QMutexLocker locker(&m_mutex);
     return m_crosshairPosition;
@@ -521,4 +523,19 @@ int DataModel::getEOPressure()
 QString DataModel::getReticleStyle() {
     //QMutexLocker locker(&m_mutex);
     return m_reticleStyle;
+}
+bool DataModel::getDeadManSwitchState() const {
+    return m_deadManSwitchState;
+}
+
+double DataModel::getGimbalAzimuthUpdated()
+{
+    QMutexLocker locker(&m_mutex);
+    return m_azimuthAngle;
+ }
+
+double DataModel::getGimbalElevationUpdated()
+{
+    QMutexLocker locker(&m_mutex);
+     return  m_elevationAngle;
 }

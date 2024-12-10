@@ -1,6 +1,6 @@
 #include "include/gimbal/patternmotionmode.h"
 #include "include/gimbal/gimbalcontroller.h"
-#include "include/gimbal/gimbalmotordriver.h"
+
 #include <QTimer>
 #include <QDebug>
 

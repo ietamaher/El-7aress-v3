@@ -95,11 +95,7 @@ private slots:
 
     void on_detectionToggleButton_clicked();
 
-    void on_stabToggleButton_clicked();
 
-    void on_speedPlusButton_clicked();
-
-    void on_speedMinusButton_clicked();
 
     void onUpSwChanged(bool state);
     void onDownSwChanged(bool state);
@@ -189,12 +185,9 @@ private:
  void checkSystemStatus();
  void checkJoystickStatus();
      bool m_detectionEnabled;
-    bool m_stabilizationEnabled;
-     double m_currentGimbalSpeed;
-     QVector<double> m_speedValues;
-     int m_speedIndex;
+
      bool m_previousfirestate = false;
-     void updateGimbalSpeed();
+     //void updateGimbalSpeed();
 };
 
 #endif // MAINWINDOW_H

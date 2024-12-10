@@ -1,25 +1,25 @@
 #include "include/gimbal/radartrackingmotionmode.h"
 #include "include/gimbal/gimbalcontroller.h"
 #include "include/sensor/sensorsystem.h"
-#include "include/gimbal/gimbalmotordriver.h"
+
 #include <QDebug>
 
 void RadarTrackingMotionMode::enter(GimbalController* controller) {
     qDebug() << "Entering Radar Tracking Motion Mode";
-    SensorSystem* sensorSystem = controller->getSensorSystem();
+    /*SensorSystem* sensorSystem = controller->getSensorSystem();
     if (sensorSystem && sensorSystem->getRadarInterface()) {
         connect(sensorSystem->getRadarInterface(), &RadarInterface::targetUpdated,
                 this, &RadarTrackingMotionMode::onRadarTargetUpdated);
-    }
+    }*/
 }
 
 void RadarTrackingMotionMode::exit(GimbalController* controller) {
     qDebug() << "Exiting Radar Tracking Motion Mode";
-    SensorSystem* sensorSystem = controller->getSensorSystem();
+    /*SensorSystem* sensorSystem = controller->getSensorSystem();
     if (sensorSystem && sensorSystem->getRadarInterface()) {
         disconnect(sensorSystem->getRadarInterface(), &RadarInterface::targetUpdated,
                    this, &RadarTrackingMotionMode::onRadarTargetUpdated);
-    }
+    }*/
 }
 
 void RadarTrackingMotionMode::handleJoystickInput(GimbalController* controller, int axis, float value) {

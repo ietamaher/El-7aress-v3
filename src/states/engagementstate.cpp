@@ -60,12 +60,6 @@ void EngagementState::exit(StateManager* manager, OperationalMode nextMode) {
     if (manager->getWeaponSystem()) {
         manager->getWeaponSystem()->arm(false);
     }
-
-    if (manager->getGimbalController()) {
-        manager->getGimbalController()->enableManualControl(false);
-    }
-
-    // Optionally reset motion mode or perform other cleanup
 }
 
 void EngagementState::setMotionMode(MotionModeType modeType) {

@@ -1,7 +1,10 @@
 QT       += core gui  serialbus serialport   openglwidgets
+#QMAKE_RPATHDIR += /home/rapit/Applications/Qt/6.6.1/gcc_64/lib
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
-CONFIG += c++17
+CONFIG += c++14
+INCLUDEPATH += "/opt/nvidia/deepstream/deepstream-6.4/lib"
+INCLUDEPATH += "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
 
 # Include paths for OpenCV
 INCLUDEPATH += "/usr/include/opencv4"
@@ -46,10 +49,10 @@ INCLUDEPATH +="/opt/nvidia/deepstream/deepstream-6.4/sources/includes"
 # for PC linux
 LIBS += -L/usr/local/cuda-12.2/lib64 -lcudart
 LIBS += -L/opt/nvidia/deepstream/deepstream-6.4/lib -lnvdsgst_meta -lnvds_meta
-LIBS+=-L"/usr/lib/x86_64-linux-gnu/gstreamer-1.0" -lgstxvimagesink -L"/usr/lib/x86_64-linux-gnu" -lgstbase-1.0 -lgstreamer-1.0 -lglib-2.0 -lgobject-2.0
+LIBS+=-L"/usr/lib/x86_64-linux-gnu/gstreamer-1.0" -lgstxvimagesink  #-L"/usr/lib/x86_64-linux-gnu" -lgstbase-1.0 -lgstreamer-1.0 -lglib-2.0 -lgobject-2.0
 LIBS += -L/usr/lib/aarch64-linux-gnu/tegra -lnvbufsurface -lnvbufsurftransform
 
-LIBS+=-L"/usr/lib/x86_64-linux-gnu/gstreamer-1.0" -lgstxvimagesink -L"/usr/lib/x86_64-linux-gnu" -lgstbase-1.0 -lgstreamer-1.0 -lglib-2.0 -lgobject-2.0
+#LIBS+=-L"/usr/lib/x86_64-linux-gnu/gstreamer-1.0" -lgstxvimagesink -L"/usr/lib/x86_64-linux-gnu" -lgstbase-1.0 -lgstreamer-1.0 -lglib-2.0 -lgobject-2.0
 
 
 #for jetson device

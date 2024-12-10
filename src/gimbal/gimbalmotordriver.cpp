@@ -1,4 +1,4 @@
-#include "include/gimbal/gimbalmotordriver.h"
+
 #include <QDebug>
 
 GimbalMotorDriver::GimbalMotorDriver(QObject *parent)

@@ -34,7 +34,7 @@ bool ServoActuatorInterface::openSerialPort(const QString &portName) {
         emit statusChanged(m_isConnected);
         return true;
     } else {
-       qDebug() << "Failed to open radar serial port:" << servoSerial->errorString();
+       qDebug() << "Failed to open actuator serial port:" << servoSerial->errorString();
         emit errorOccurred(servoSerial->errorString());
         m_isConnected = false;
         emit statusChanged(m_isConnected);

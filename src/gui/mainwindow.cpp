@@ -12,25 +12,17 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
     m_dataModel(new DataModel(this)),
-    m_stateManager(new StateManager(m_dataModel, this)) ,
     ui(new Ui::MainWindow),
-    m_currentGimbalSpeed(10.0), // Default speed percentage
-    m_speedValues({2, 5, 10, 20, 50, 100}),
-    m_speedIndex(2), // Corresponds to 10%
+    m_stateManager(new StateManager(m_dataModel, this)) ,
     m_manualGimbalControlEnabled(false),
-    m_detectionEnabled(false),
-    m_stabilizationEnabled(false)
-{
+    m_detectionEnabled(false)
+ {
     ui->setupUi(this);
     initializeComponents();
     connectSignals();
     startThread();
     // Initialize status panel
     m_statusPanel = new StatusPanel(this);
-
-    // Add status panel to the main window
-     //ui->systemStatusWidget->setWiddget(m_statusPanel);
-
 }
 
 MainWindow::~MainWindow() {
@@ -110,15 +102,8 @@ void MainWindow::initializeComponents() {
     // Start monitoring sensors
     m_sensorSystem->startMonitoringSensors();
 
-
-    /*m_stateManager->setSensorSystem(m_sensorSystem);
-    // Use the member variable m_cameraSystem
-    m_stateManager->setGimbalController(m_gimbalController);
-    m_stateManager->setCameraSystem(m_cameraSystem);
-    m_stateManager->setWeaponSystem(m_weaponSystem);*/
-
     m_stateManager->setMode(OperationalMode::Idle);
-
+    m_dataModel->setOperationalStateMode(OperationalMode::Idle);
     //m_cameraSystem->setDisplayWidget(ui->_widget);
     CameraPipelineDay* dayCamera = m_cameraSystem->getDayCamera();
     QVBoxLayout *layout = new QVBoxLayout(ui->_widget); // Use the central widget's layout
@@ -144,7 +129,6 @@ void MainWindow::initializeComponents() {
     statusTimer = new QTimer(this);
     connect(statusTimer, &QTimer::timeout, this, &MainWindow::checkSystemStatus);
     statusTimer->start(1000); // Check every second
-    ui->lblGimbalSpeed->setText(QString("%1%").arg(m_speedValues[m_speedIndex]));
 
 
 }
@@ -324,7 +308,9 @@ void MainWindow::onJoystickAxisMoved(int axis, int value) {
 
 void MainWindow::onJoystickButtonPressed(int button, bool pressed) {
     m_buttonStates[button] = pressed;
-
+    if (button == 4) { // Assuming button 4 is the dead man switch
+        m_dataModel->setDeadManSwitchState(pressed);
+    }
     if (pressed) {
         switch (button) {
             // Operational Mode Switching (TMS Hat Switch)
@@ -335,8 +321,9 @@ void MainWindow::onJoystickButtonPressed(int button, bool pressed) {
             case 19: m_stateManager->setMode(OperationalMode::Idle); break;
 
             // Camera Controls (DMS Hat Switch)
-            case 20: m_stateManager->getCameraSystem()->zoomIn(); break;
-            case 21: m_stateManager->getCameraSystem()->zoomOut(); break;
+            case 6: m_stateManager->getCameraSystem()->zoomIn(); break;
+            case 8: m_stateManager->getCameraSystem()->zoomOut(); break;
+
             case 22: m_stateManager->getCameraSystem()->toggleDayNightMode(); break;
             case 23: m_stateManager->getCameraSystem()->switchCameraMode(); break;
             case 24: m_stateManager->getCameraSystem()->resetZoom(); break;
@@ -364,19 +351,18 @@ void MainWindow::onJoystickButtonPressed(int button, bool pressed) {
 
             // Gimbal Control Toggle (Button 4)
             case 4:
-                m_manualGimbalControlEnabled = !m_manualGimbalControlEnabled;
-                m_stateManager->getGimbalController()->enableManualControl(m_manualGimbalControlEnabled);
+
                 break;
 
             // Fire Weapon (Triggers)
             case 0: m_stateManager->getWeaponSystem()->prepareToFire(); break;
-            case 6: m_stateManager->getWeaponSystem()->fire(); break;
+            case 86: m_stateManager->getWeaponSystem()->fire(); break;
 
             // Emergency Stop (Button 9)
             case 9: emergencyStop(); break;
 
             // Auto Tracking Activation (Button 8)
-            case 8: activateAutoTracking(); break;
+            case 88: activateAutoTracking(); break;
 
             // Communication Functions (Mic Switch)
             /*case 27: m_stateManager->getCommunicationSystem()->increaseVolume(); break;
@@ -660,7 +646,7 @@ void MainWindow::showHelpAbout() {
 
 void MainWindow::emergencyStop() {
     m_manualGimbalControlEnabled = false;
-    m_stateManager->getGimbalController()->enable(false);
+
     m_stateManager->getWeaponSystem()->cancelFire();
     //m_stateManager->getSensorSystem()->activateSensors(false);  // TODO !!!
     m_stateManager->setMode(OperationalMode::Idle);
@@ -771,7 +757,6 @@ void MainWindow::onTrackIdSelected(QListWidgetItem* current, QListWidgetItem* pr
     }*/
 }
 
-
 int MainWindow::findItemIndexByData(QListWidget* listWidget, int data) const
 {
     for (int i = 0; i < listWidget->count(); ++i)
@@ -784,8 +769,6 @@ int MainWindow::findItemIndexByData(QListWidget* listWidget, int data) const
     }
     return -1; // Not found
 }
-
-
 
 void MainWindow::onErrorOccurred(const QString &error)
 {
@@ -906,48 +889,48 @@ void MainWindow::queryAccumulatedLaserCount()
     qDebug() << "Sending Query Accumulated Laser Count Command.";
     m_sensorSystem->queryAccumulatedLaserCount();
 }
+
 void MainWindow::onOperationalStateModeChanged(const OperationalMode &mode)
 {
     switch (mode) {
-    case OperationalMode::Idle: {
-        m_stateManager->setMode(OperationalMode::Idle);
-        break;
-    }
-    case OperationalMode::Surveillance: {
-        m_stateManager->setMode(OperationalMode::Surveillance);
-        MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
-        QString modeName;
-        switch (currentMode) {
-        case MotionModeType::Manual:
-            modeName = "Manual";
-            break;
-        case MotionModeType::Pattern:
-            modeName = "Pattern";
-            break;
-        case MotionModeType::Radar:
-            modeName = "Radar";
-            break;
-        default:
-            modeName = "Unknown";
+        case OperationalMode::Idle: {
+            m_stateManager->setMode(OperationalMode::Idle);
             break;
         }
+        case OperationalMode::Surveillance: {
+            m_stateManager->setMode(OperationalMode::Surveillance);
+            MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
+            QString modeName;
+            switch (currentMode) {
+            case MotionModeType::Manual:
+                modeName = "Manual";
+                break;
+            case MotionModeType::Pattern:
+                modeName = "Pattern";
+                break;
+            case MotionModeType::Radar:
+                modeName = "Radar";
+                break;
+            default:
+                modeName = "Unknown";
+                break;
+            }
 
-        ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
-        m_dataModel->setMotionMode(modeName);
-        break;
-    }
-    default: {
-        m_stateManager->setMode(OperationalMode::Idle);
-        break;
-    }
+            ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+            m_dataModel->setMotionMode(modeName);
+            break;
+        }
+        default: {
+            m_stateManager->setMode(OperationalMode::Idle);
+            break;
+        }
     }
 }
-
-
 
 void MainWindow::on_idleBtn_clicked()
 {
     m_stateManager->setMode(OperationalMode::Idle);
+    m_dataModel->setOperationalStateMode(OperationalMode::Idle);
 }
 
 void MainWindow::on_survBtn_clicked()
@@ -972,7 +955,6 @@ void MainWindow::on_survBtn_clicked()
 
     ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
     m_dataModel->setMotionMode(modeName);
-
 }
 
 void MainWindow::on_engageBtn_clicked()
@@ -996,7 +978,6 @@ void MainWindow::on_engageBtn_clicked()
     }
     ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
     m_dataModel->setMotionMode(modeName);
-
 
 }
 
@@ -1025,7 +1006,6 @@ void MainWindow::on_trckBtn_clicked()
         break;
     }
     ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
-
 
 }
 
@@ -1079,11 +1059,11 @@ void MainWindow::on_switchMotionModeButton_clicked()
             break;
         }
 
-         ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
+        ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
         m_dataModel->setMotionMode(modeName);
 
-
-    } else if(m_stateManager->currentMode() == OperationalMode::Tracking) {
+    } 
+    else if(m_stateManager->currentMode() == OperationalMode::Tracking) {
         // Get the current motion mode
         MotionModeType currentMode = m_stateManager->getGimbalController()->getCurrentMotionMode();
         MotionModeType nextMode;
@@ -1120,18 +1100,12 @@ void MainWindow::on_switchMotionModeButton_clicked()
 
         ui->currentMotionModeLabel->setText(QString("Current Motion Mode: %1").arg(modeName));
         m_dataModel->setMotionMode(modeName);
-
-
     }
-
     else {
         QMessageBox::warning(this, "Invalid Operation",
                              "Motion mode can only be changed in Surveillance mode.");
     }
-
 }
-
-
 
 void MainWindow::on_trackButton_clicked()
 {
@@ -1152,22 +1126,18 @@ void MainWindow::on_trackButton_clicked()
             }
         }
         else if (currentMode == MotionModeType::ManualTracking){
-
             // Implement Manual Tracking Workflow
         }
         else
         {
             // Out of Tracking Mode
         }
-
     }
     else
     {
          // Out of Tracking Mode
-
     }
 }
-
 
 void MainWindow::on_engageButton_clicked()
 {
@@ -1185,7 +1155,6 @@ void MainWindow::on_engageButton_clicked()
     }
 }
 
-
 void MainWindow::on_cancelTrackingButton_clicked()
 {
     if (m_stateManager->currentMode() == OperationalMode::Tracking) {
@@ -1195,7 +1164,6 @@ void MainWindow::on_cancelTrackingButton_clicked()
         }
     }
 }
-
 
 void MainWindow::on_detectionToggleButton_clicked()
 {
@@ -1231,65 +1199,3 @@ void MainWindow::on_detectionToggleButton_clicked()
         // Optionally, update UI elements or indicators
     }
 }
-
-void MainWindow::on_stabToggleButton_clicked()
-{
-    if (m_stateManager->currentMode() == OperationalMode::Surveillance ||
-        m_stateManager->currentMode() == OperationalMode::Tracking) {
-
-        // **Toggle the stabilization state**
-        m_stabilizationEnabled = !m_stabilizationEnabled;
-
-        if (m_stateManager->getGimbalController()) {
-            m_stateManager->getGimbalController()->setStabilizationEnabled(m_stabilizationEnabled);
-        }
-
-        // **Update DataModel**
-        m_dataModel->setStabilizationEnabled(m_stabilizationEnabled);
-
-        // Optionally, update UI elements or indicators
-    }
-}
-
-
-
-void MainWindow::on_speedPlusButton_clicked()
-{
-    if (m_stateManager->getGimbalController()->getCurrentMotionMode() == MotionModeType::Manual) {
-        if (m_speedIndex < m_speedValues.size() - 1) {
-            m_speedIndex++;
-            m_currentGimbalSpeed = m_speedValues[m_speedIndex];
-            updateGimbalSpeed();
-        }
-    }
-}
-
-
-void MainWindow::on_speedMinusButton_clicked()
-{
-    if (m_stateManager->getGimbalController()->getCurrentMotionMode() == MotionModeType::Manual) {
-        if (m_speedIndex > 0) {
-            m_speedIndex--;
-            m_currentGimbalSpeed = m_speedValues[m_speedIndex];
-            updateGimbalSpeed();
-        }
-    }
-}
-
-void MainWindow::updateGimbalSpeed()
-{
-    // Update the speed label display
-    ui->lblGimbalSpeed->setText(QString("%1%").arg(m_currentGimbalSpeed));
-
-    // Update DataModel
-    m_dataModel->setGimbalSpeed(m_currentGimbalSpeed);
-
-    // Update GimbalController
-    if (m_stateManager->getGimbalController()) {
-        double speed = m_currentGimbalSpeed / 100.0; // Convert percentage to 0-1 range
-        m_stateManager->getGimbalController()->setPanSpeed(speed);
-        m_stateManager->getGimbalController()->setTiltSpeed(speed);
-    }
-}
-
-

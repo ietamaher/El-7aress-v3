@@ -16,7 +16,7 @@ PLCStationSensorInterface::PLCStationSensorInterface(PLCStationDriver *modbusCom
 void PLCStationSensorInterface::onInputBitsRead(int address, const QVector<uint8_t> &bits) {
     // Process digital inputs
     // For example, if proximity sensor is at address 0
-     int upperSensorIndex = 0;
+    int upperSensorIndex = 0;
     int lowerSensorIndex = 1;
     int ammunitionLevelIndex = 2;
     int input1Index = 3;

@@ -27,9 +27,7 @@ public slots:
     void setMotionMode(const QString &mode);
     void setLRFDistance(double distance);
     void setGyroOrientation(double roll, double pitch, double yaw);
-    void setGimbalOrientation(double azimuth, double elevation);
-    void setGimbalSpeed(double speed);
-    void setCrosshairPosition(const QPointF &position);
+     void setCrosshairPosition(const QPointF &position);
     void setWeaponSystemStatus(const QString &status);
     void setTargetInformation(const QString &info);
     void setSystemTime(const QDateTime &time);
@@ -66,7 +64,9 @@ public slots:
     void setEOPressure(int pressure);
 
     void setReticleStyle(const QString &style);
-
+    void setDeadManSwitchState(bool state);
+    void setGimbalAzimuthUpdated(double azimuth);
+    void setGimbalElevationUpdated(double elevation);
 
     // Getters
 public:
@@ -75,8 +75,6 @@ public:
     double getLRFDistance();
     void getGyroOrientation(double &roll, double &pitch, double &yaw);
 
-    void getGimbalOrientation(double &azimuth, double &elevation);
-    double getGimbalSpeed();
     QPointF getCrosshairPosition();
     QString getWeaponSystemStatus();
     QString getTargetInformation();
@@ -115,6 +113,10 @@ public:
     int getEOPressure();
 
     QString getReticleStyle();
+
+    bool getDeadManSwitchState() const;
+    double getGimbalAzimuthUpdated();
+    double getGimbalElevationUpdated();
 signals:
     // Optional: Signals to notify changes
     void dataModelUpdated();
@@ -125,6 +127,7 @@ signals:
 
     void reticleStyleChanged(const QString &style);
     void fireModeChanged(FireMode mode);
+    void deadManSwitchStateChanged(bool state);
 
 private:
     // Data members
@@ -135,8 +138,7 @@ private:
 
     double m_azimuthAngle;
     double m_elevationAngle;
-    double m_gimbalSpeed;
-    QPointF m_crosshairPosition;
+     QPointF m_crosshairPosition;
     QString m_weaponSystemStatus;
     QString m_targetInformation;
     QDateTime m_systemTime;
@@ -171,6 +173,7 @@ private:
     int m_stationPressure;
 
     QString m_reticleStyle;
+    bool m_deadManSwitchState = false;
 
     QMutex m_mutex; // Protects data members
 

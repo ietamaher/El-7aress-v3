@@ -17,14 +17,14 @@ public:
     void update(GimbalController* controller) override;
 
 public slots:
-    void onTargetPositionUpdated(double azimuth, double elevation);
+    //void onTargetPositionUpdated(double azimuth, double elevation);
 
 private:
-    double m_azimuth;
-    double m_elevation;
+    //double m_azimuth;
+    //double m_elevation;
 
-    float m_azimuthInput;
-    float m_elevationInput;
+    float m_azimuthJoystickInput;
+    float m_elevationJoystickInput;
 
     // stabilization corrections
     double m_stabilizationAzimuth;

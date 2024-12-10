@@ -51,8 +51,12 @@ Q_DECLARE_METATYPE(std::set<int>)
 //#define UNTRACKED_OBJECT_ID (guint64)(-1)
 #define PGIE_CLASS_ID_PERSON 0  // Adjust based on your class IDs
 #define NVDS_USER_OBJ_MISC_META (nvds_get_user_meta_type("NVIDIA.NvDsUserObjMiscMeta"))
+#define NUM_CIRCLE_POINTS 100 // Adjust for smoothness
+#define DEG2RAD(x) ((x) * M_PI / 180.0)
 
-    typedef guint32 GstGLenum;
+#define MAX_ELEMENTS_IN_OSD 512 // Example value
+
+typedef guint32 GstGLenum;
 // Enumerations
 enum ProcessingMode {
     MODE_IDLE,
@@ -146,8 +150,11 @@ private:
     void renderReticle(NvDsDisplayMeta *display_meta);
     void busThreadFunction();
     bool setPipelineStateWithTimeout(GstElement* pipeline, GstState state, GstClockTime timeout = 5 * GST_SECOND);
-
-    // Pipeline Elements
+    void addLineToDisplayMeta(NvDsDisplayMeta *display_meta,
+                                      int x1, int y1, int x2, int y2,
+                                      int line_width, NvOSD_ColorParams color);
+    void addTextToDisplayMeta(NvDsDisplayMeta *display_meta,
+                              int x, int y, const char *textChar) ;
     GstElement *pipeline;
     GstElement *appsink;
     GstElement *source;
@@ -217,6 +224,11 @@ private:
     QThread* busThread;
     QMutex pipelineMutex;
 
+    NvOSD_ColorParams fontColor;
+    NvOSD_ColorParams textShadowColor ;
+    NvOSD_ColorParams lineColor;
+    NvOSD_ColorParams shadowLineColor;
+    NvOSD_FontParams textFontParam, textFontParam_;
 
 };
 

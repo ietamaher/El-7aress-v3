@@ -9,15 +9,14 @@ GimbalController::GimbalController(DataModel *dataModel, QObject *parent)
     : QObject(parent),
       m_dataModel(dataModel),
       m_plcServoInterface(nullptr),
-      m_azimuthServoDriver(new ServoDriverInterface("azServo", "/dev/pts/4", 115200, 2, this)),
-      m_elevationServoDriver(new ServoDriverInterface("elServo", "/dev/pts/7", 115200, 2, this)),
+      //m_azimuthServoDriver(new ServoDriverInterface("azServo", "/dev/pts/4", 115200, 2, this)),
+      //m_elevationServoDriver(new ServoDriverInterface("elServo", "/dev/pts/7", 115200, 2, this)),
       m_azimuthPosition(0.0),
       m_elevationPosition(0.0),
       m_enabled(false),
       m_manualControlEnabled(false),
       m_currentOpsMode(OperationalMode::Idle),
       m_currentMotionMode(nullptr),
-      m_sensorSystem(nullptr),
       m_cameraSystem(nullptr),
       m_currentMotionModeType(MotionModeType::Manual),
       m_stabilizationEnabled(false),
@@ -26,7 +25,7 @@ GimbalController::GimbalController(DataModel *dataModel, QObject *parent)
 {
 
     // Connect ServoDriverInterface instances
-    bool azimuthConnected = m_azimuthServoDriver->connectDevice();
+    /*bool azimuthConnected = m_azimuthServoDriver->connectDevice();
     bool elevationConnected = m_elevationServoDriver->connectDevice();
 
     if (!azimuthConnected || !elevationConnected) {
@@ -34,15 +33,7 @@ GimbalController::GimbalController(DataModel *dataModel, QObject *parent)
         qDebug() << "Failed to connect to servo drivers.";
     }
 
-    // Connect to mduino controller
-    //if (!m_mduinoController->connectDevice()) {
-    //  emit logMessage("Failed to connect to mduino industrial shield.");
-    // return false;
-    //}
-
     emit logMessage("GimbalMotorDriver initialized successfully.");
-
-
 
     // Connect signals from motor driver
     connect(m_azimuthServoDriver, &ServoDriverInterface::dataRead,  this, &GimbalController::onAzimuthDataUpdated);
@@ -53,8 +44,8 @@ GimbalController::GimbalController(DataModel *dataModel, QObject *parent)
 
      // Connect log messages
     connect(m_azimuthServoDriver, &ServoDriverInterface::logMessage, this, &GimbalController::logMessage);
-
     connect(m_elevationServoDriver, &ServoDriverInterface::logMessage, this, &GimbalController::logMessage);
+*/
     // Initialize update timer
     m_updateTimer = new QTimer(this);
     connect(m_updateTimer, &QTimer::timeout, this, &GimbalController::update);
@@ -73,13 +64,12 @@ void GimbalController::shutdown() {
         m_updateTimer->stop();
 }
 
-double GimbalController::getAzimuthPosition() const {
-    return m_azimuthPosition;
+void GimbalController::update() {
+    if (m_currentMotionMode) {
+        m_currentMotionMode->update(this);
+    }
 }
 
-double GimbalController::getElevationPosition() const {
-    return m_elevationPosition;
-}
 void GimbalController::setMotionMode(MotionModeType modeType) {
     if (m_currentMotionModeType == modeType)
         return; // No change needed
@@ -115,7 +105,6 @@ void GimbalController::setMotionMode(MotionModeType modeType) {
     if (m_currentMotionMode) {
         m_currentMotionMode->enter(this);
     }
-
     qDebug() << "GimbalController: Motion mode set to" << static_cast<int>(modeType);
 
     // Emit the signal after setting the mode
@@ -123,13 +112,16 @@ void GimbalController::setMotionMode(MotionModeType modeType) {
 
 }
 
-void GimbalController::setStabilizationEnabled(bool enabled) {
-    m_stabilizationEnabled = enabled;
+void GimbalController::setPLCServoInterface(PLCServoInterface *servoInterface) {
+    m_plcServoInterface = servoInterface;
+    if (m_plcServoInterface) {
+        // Disconnect previous connections if any
+        disconnect(m_plcServoInterface, nullptr, this, nullptr);
+    }
+    m_plcServoInterface = servoInterface;
 }
 
-bool GimbalController::isStabilizationEnabled() const {
-    return m_stabilizationEnabled;
-}
+
 
 void GimbalController::handleAzimuthConnectionStatusChanged(bool connected){
     emit azimuthConnectionStatusChanged(connected);
@@ -140,39 +132,15 @@ void GimbalController::handleElevationConnectionStatusChanged(bool connected){
 }
 
 
-void GimbalController::update() {
-    if (m_currentMotionMode) {
-        m_currentMotionMode->update(this);
-    }
-}
-
-void GimbalController::setPLCServoInterface(PLCServoInterface *servoInterface) {
-    m_plcServoInterface = servoInterface;
-    if (m_plcServoInterface) {
-        // Disconnect previous connections if any
-        disconnect(m_plcServoInterface, nullptr, this, nullptr);
-    }
-    m_plcServoInterface = servoInterface;
-    if (m_plcServoInterface) {
-        // Connect signals
-        //connect(m_plcServoInterface, &PLCStationSensorInterface::proximitySensorActivated, this, &SensorSystem::proximitySensorActivated);
-        //connect(m_plcServoInterface, &PLCStationSensorInterface::temperatureUpdated, this, &SensorSystem::temperatureUpdated);
-        //connect(m_plcServoInterface, &PLCStationSensorInterface::pressureUpdated, this, &SensorSystem::pressureUpdated);
-    }
-}
 PLCServoInterface* GimbalController::getPLCServoInterface()const {
     return m_plcServoInterface;
 }
 
-SensorSystem* GimbalController::getSensorSystem() const {
-    return m_sensorSystem;
-}
 
-void GimbalController::setSensorSystem(SensorSystem* sensorSystem) {
-    m_sensorSystem = sensorSystem;
-}
-
-CameraSystem* GimbalController::getCameraSystem() const {
+/*
+ * needed set and get to retreive tracking information to use it in with child class TargetTrackingMotionMode
+*/
+ CameraSystem* GimbalController::getCameraSystem() const {
     qDebug() << "GimbalController::getCameraSystem() called, returning:" << m_cameraSystem;
 
     return m_cameraSystem;
@@ -220,7 +188,7 @@ void GimbalController::onAzimuthDataUpdated(const QVector<uint16_t> &data) {
 
         m_azimuth = position / 1000.0; // Adjust scaling as needed
 
-        emit positionUpdated(m_azimuth, m_elevation);
+         m_dataModel->setGimbalAzimuthUpdated(m_azimuth);
     }
 }
 
@@ -232,53 +200,17 @@ void GimbalController::onElevationDataUpdated(const QVector<uint16_t> &data) {
         int32_t motorTemp = (data[46] << 16) | data[47];
         int32_t driverTemp = (data[48] << 16) | data[49];
 
-        double m_elevation = position / 1000.0; // Adjust scaling as needed
-
-        emit positionUpdated(m_azimuth, m_elevation);
+        m_elevation = position / 1000.0; // Adjust scaling as needed
+        m_dataModel->setGimbalElevationUpdated(m_elevation);
     }
 }
 void GimbalController::onModeChanged(OperationalMode mode) {
     m_currentOpsMode = mode;
 
-    switch (mode) {
-        case OperationalMode::Idle:
-            enable(false);
-            break;
-        case OperationalMode::Surveillance:
-            enableManualControl(true);
-            break;
-        case OperationalMode::Tracking:
-            enableManualControl(false);
-            break;
-        case OperationalMode::Engagement:
-            enableManualControl(true);
-            break;
-    }
-}
-
-void GimbalController::enable(bool enabled) {
-    // Implement logic to enable or disable the gimbal controller
-    // For example:
-    // m_enabled = enabled;
-}
-
-void GimbalController::enableManualControl(bool enabled) {
-    // Implement logic to enable or disable manual control
-    // For example:
-    // m_manualControlEnabled = enabled;
 }
 
 MotionModeType GimbalController::getCurrentMotionMode() const {
     return m_currentMotionModeType;
-}
-void GimbalController::setPanSpeed(float speed) {
-    m_panSpeed = speed;
-    // Update the hardware or internal logic to adjust the pan speed
-}
-
-void GimbalController::setTiltSpeed(float speed) {
-    m_tiltSpeed = speed;
-    // Update the hardware or internal logic to adjust the tilt speed
 }
 
 

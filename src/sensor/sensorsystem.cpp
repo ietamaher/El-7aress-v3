@@ -10,9 +10,9 @@ SensorSystem::SensorSystem(DataModel *dataModel, QObject *parent)
     m_sensorsActive(false),
     m_lrfActive(false),
     m_stabilizationEnabled(false),
-    m_lrfInterface(new LRFInterface(this)),
-    m_gyroInterface(new GyroInterface(this)),
-    m_radarInterface(new RadarInterface(this)),
+    //m_lrfInterface(new LRFInterface(this)),
+    //m_gyroInterface(new GyroInterface(this)),
+    //m_radarInterface(new RadarInterface(this)),
     m_plcStationSensorInterface(nullptr),
     m_plcPanelSensorInterface(new PLCPanelSensorInterface("/dev/pts/13", 115200, 1, this)),
 
@@ -23,7 +23,7 @@ SensorSystem::SensorSystem(DataModel *dataModel, QObject *parent)
     qDebug() << "SensorSystem constructor called";
 
     // Initialize LRF Interface
-    if (m_lrfInterface->openSerialPort("/dev/pts/1")) {
+    /*if (m_lrfInterface->openSerialPort("/dev/pts/1")) {
         setLRFInterface(m_lrfInterface);
         handleLRFConnectionStatusChanged(true);
 
@@ -49,7 +49,7 @@ SensorSystem::SensorSystem(DataModel *dataModel, QObject *parent)
     } else {
        qDebug() << "Failed to open Radar serial port";
         // Handle failure
-    }
+    }*/
     // Connect PLCPanelSensorInterface signals to SensorSystem slots
     connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::gunStateChanged, this, &SensorSystem::onGunStateChanged);
     connect(m_plcPanelSensorInterface, &PLCPanelSensorInterface::fireModeStateInputChanged, this, &SensorSystem::onFireModeStateInputChanged);

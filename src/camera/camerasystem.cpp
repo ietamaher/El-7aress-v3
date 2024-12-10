@@ -17,7 +17,7 @@ CameraSystem::CameraSystem(DataModel *dataModel, QObject *parent)
     m_isNightCameraConnected(false),
     m_isLensConnected(false)
 {
-    initializeCameraInterfaces();
+    //initializeCameraInterfaces();
     initializePipelines();
     qDebug() << "CameraSystem constructor called";
 

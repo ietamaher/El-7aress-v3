@@ -1,7 +1,7 @@
 #include "include/gimbal/gyrostabilizationmotionmode.h"
 #include "include/gimbal/gimbalcontroller.h"
 #include "include/sensor/sensorsystem.h"
-#include "include/gimbal/gimbalmotordriver.h"
+
 #include <QDebug>
 #include <Eigen/Dense>
 #include <cmath>
@@ -30,7 +30,7 @@ void GyroStabilizationMotionMode::handleJoystickInput(GimbalController* controll
 
 void GyroStabilizationMotionMode::update(GimbalController* controller) {
     // Use gyro data to adjust motor commands
-    SensorSystem* sensorSystem = controller->getSensorSystem();
+    /*SensorSystem* sensorSystem = controller->getSensorSystem();
     if (sensorSystem) {
         double psi, theta, phi;
         double compensationAzimuth;
@@ -61,5 +61,5 @@ void GyroStabilizationMotionMode::update(GimbalController* controller) {
         // Send motion command to GimbalMotorDriver
          controller->sendPositionCommand(compensationAzimuth, compensationElevation);
 
-    }
+    }*/
 }

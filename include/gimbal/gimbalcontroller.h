@@ -8,7 +8,6 @@
 
 
 //#include "gimbalmotordriver.h"
-#include "mduinocontroller.h"
 #include "../sensor/sensorsystem.h"
 #include "../camera/camerasystem.h"
 #include "plcservointerface.h"
@@ -20,7 +19,6 @@
 
 #define MODE_SWITCH_BUTTON_ID 333
 #define STABILIZATION_TOGGLE_BUTTON_ID 444
-//#define PGIE_CLASS_ID_PERSON 0
 
 class GimbalController : public QObject {
     Q_OBJECT
@@ -36,8 +34,8 @@ public:
     MotionModeType getCurrentMotionMode() const; // Add getter
     // Accessors
     //GimbalMotorDriver* getGimbalMotorDriver() const;
-    SensorSystem* getSensorSystem() const;
-    void setSensorSystem(SensorSystem* sensorSystem);
+    //SensorSystem* getSensorSystem() const;
+    //void setSensorSystem(SensorSystem* sensorSystem);
     CameraSystem* getCameraSystem() const;
     PLCServoInterface* getPLCServoInterface()const;
     void setCameraSystem(CameraSystem* cameraSystem);
@@ -45,11 +43,9 @@ public:
 
     void shutdown();
 
-    void setPanSpeed(float speed);
-    void setTiltSpeed(float speed);
 
-    void enable(bool enable);
-    void enableManualControl(bool enable);
+    //void enable(bool enable);
+    //void enableManualControl(bool enable);
     void startAutoScan();
     void stopAutoScan();
     void startDetectionScan();
@@ -58,8 +54,7 @@ public:
     void handleJoystickButtonPressed(int buttonId);
 
     void setStabilizationEnabled(bool enabled);
-    bool isStabilizationEnabled() const;
-    // Initialization
+     // Initialization
     bool initialize();
 
     // Command methods
@@ -67,11 +62,24 @@ public:
     void sendSpeedCommand(double azimuthSpeed, double elevationSpeed);
 
     // Accessors for current positions
-    double getAzimuthPosition() const;
-    double getElevationPosition() const;
+    //double getAzimuthPosition() const;
+    //double getElevationPosition() const;
     void setAzimuthPosition(double azimuth);
     void setElevationPosition(double elevation);
     DataModel* getDataModel() const { return m_dataModel; }
+
+
+signals:
+    void azimuthConnectionStatusChanged(bool connected);
+    void elevationConnectionStatusChanged(bool connected);
+
+    void motionModeChangeRequested(MotionModeType modeType);
+
+    void stepperMotorStatusChanged(const QString &motorName, bool connected);
+    void azimuthDataUpdated(const QVector<uint16_t> &data);
+    void elevationDataUpdated(const QVector<uint16_t> &data);
+    void logMessage(const QString &message);
+
 
 public slots:
     //void onAxisMoved(int axis, float normalizedValue);
@@ -82,18 +90,6 @@ public slots:
     void handleAzimuthConnectionStatusChanged(bool connected);
     void handleElevationConnectionStatusChanged(bool connected);
 
-signals:
-    void positionUpdated(double azimuth, double elevation);
-
-    void azimuthConnectionStatusChanged(bool connected);
-    void elevationConnectionStatusChanged(bool connected);
-    void motionModeChangeRequested(MotionModeType modeType);
-
-    void stepperMotorStatusChanged(const QString &motorName, bool connected);
-    void azimuthDataUpdated(const QVector<uint16_t> &data);
-    void elevationDataUpdated(const QVector<uint16_t> &data);
-    void logMessage(const QString &message);
-
 
 private:
     bool m_enabled;
@@ -103,7 +99,7 @@ private:
 
    // GimbalMotionMode* m_currentMotionMode;
     //GimbalMotorDriver* m_gimbalMotorDriver;
-    SensorSystem* m_sensorSystem;
+    //SensorSystem* m_sensorSystem;
     CameraSystem* m_cameraSystem;
     PLCServoInterface* m_plcServoInterface;
     //JoystickHandler *m_joystickHandler;
@@ -122,7 +118,7 @@ private:
     double m_targetElevation;
     float m_panSpeed;
     float m_tiltSpeed;
- QTimer *m_updateTimer;
+    QTimer *m_updateTimer;
     // Feedback update method
     void readFeedback();
 };

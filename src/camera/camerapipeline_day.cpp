@@ -34,6 +34,7 @@ CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QWidget *parent)
     manual_bbox.width = 100;
     manual_bbox.height = 100;
 
+
     fontColor = {0.0, 0.85, 0.17, 1.0};
     //fontColor = {1.0, 1.0, 1.0, 1.0};
 
@@ -45,6 +46,7 @@ CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QWidget *parent)
     lineColor = {0.0, 0.85, 0.17, 1.0};
     //lineColor = {0.2, 0.8, 0.2, 1.0};
     shadowLineColor = {0.0, 0.0, 0.0, 0.65};
+
 
 
     connect(m_dataModel, &DataModel::reticleStyleChanged, this, &CameraPipelineDay::onReticleStyleChanged);
@@ -445,6 +447,7 @@ GstFlowReturn CameraPipelineDay::on_new_sample(GstAppSink *sink, gpointer data)
 GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
     CameraPipelineDay *self = static_cast<CameraPipelineDay *>(user_data);
+
     auto start = std::chrono::high_resolution_clock::now();
 
     // Increment framesSinceLastSeen for all active tracks
@@ -464,6 +467,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)(l_frame->data);
 
         // **General Overlay Start**
+
 
 
 
@@ -533,6 +537,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         bool AuthorizeState = self->m_dataModel->getAuthorizeSw();        // Authorization switch state
         // READY state is true if all the above are true
         bool readyState = gunArmedState && ammunitionLoadState && stationMotionState && AuthorizeState;
+
         // Acquire display meta for general overlay
         NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
         display_meta->num_labels = 0;
@@ -553,10 +558,12 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         g_free(displayLRFText);
         // **Detection Status Label**
 
+
         char* displayDetectionText =  g_strdup_printf("DET: %s", detectionEnabled ? "ON" : "OFF");
         self->addTextToDisplayMeta(display_meta, 500, 10, displayDetectionText);
         g_free(displayDetectionText);
         // **Stabilization Status Label**
+
         char* displayStabText =  g_strdup_printf("STAB: %s", stabilizationEnabled ? "ON" : "OFF");
         self->addTextToDisplayMeta(display_meta, 650, 10, displayStabText);
         g_free(displayStabText);
@@ -633,6 +640,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
         char* displayMinElText =   g_strdup_printf("-20°");
         self->addTextToDisplayMeta(display_meta2, lowPointX + 2, lowPointY - 20, displayMinElText);
         g_free(displayMinElText);
+
 
 
         NvDsDisplayMeta *display_meta3 = nvds_acquire_display_meta_from_pool(batch_meta);
@@ -724,6 +732,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
 
         int frame_width = frame_meta->source_frame_width;
         int frame_height = frame_meta->source_frame_height;
+
 
 
         NvDsDisplayMeta *display_meta5 = nvds_acquire_display_meta_from_pool(batch_meta);
@@ -1031,6 +1040,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
             }
         }
 
+
         // **Add the Display Meta to the Frame**
         nvds_add_display_meta_to_frame(frame_meta, display_meta);
         nvds_add_display_meta_to_frame(frame_meta, display_meta1);
@@ -1103,11 +1113,13 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
                             nvds_add_display_meta_to_frame(frame_meta, shadow_meta);
                         }
                     }
+
                 }*/
 
                 // ** Render Main Bounding Box **
                 //rect_params->border_color = self->lineColor; // Main color (e.g., red)
                 rect_params->border_width = 2;              // Border width
+
             }
 
             // Remove unwanted object metadata
@@ -1153,6 +1165,7 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
                     {
                         // Change bounding box color and border width
                         obj_meta->rect_params.border_color = (NvOSD_ColorParams){0.0, 1.0, 0.0, 1.0}; // Red
+
 
                         NvDsDisplayMeta *display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
                         display_meta->num_lines = 1;
@@ -1411,6 +1424,7 @@ void CameraPipelineDay::clear_obj_meta_list(NvDsFrameMeta *frame_meta)
 
 
 // Function to add a line to the display meta
+
 void CameraPipelineDay::addLineToDisplayMeta(NvDsDisplayMeta *display_meta,
                                                      int x1, int y1, int x2, int y2,
                                                      int line_width, NvOSD_ColorParams color) {
@@ -1452,6 +1466,7 @@ void CameraPipelineDay::addTextToDisplayMeta(NvDsDisplayMeta *display_meta,
     txt_params->font_params = textFontParam; // White color
     txt_params->set_bg_clr = 0;
 }
+
 
 
 void CameraPipelineDay::setSelectedTrackId(int trackId)

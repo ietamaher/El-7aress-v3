@@ -3,7 +3,8 @@
 /debug/
 /release/
 /docs/
- 
+/build/
+/docs/
 
 # Qt Creator specific files
 *.pro.user

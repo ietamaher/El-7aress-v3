@@ -37,9 +37,9 @@ CameraPipelineDay::CameraPipelineDay(DataModel *dataModel, QWidget *parent)
 
     fontColor = {0.0, 0.85, 0.17, 1.0};
     //fontColor = {1.0, 1.0, 1.0, 1.0};
-
+    fontColor = {0.0, 0.94, 0.27, 1.0};
     textShadowColor = {0.0, 0.0, 0.0, 0.65};
-    textFontParam.font_name = "OCR-A";
+    textFontParam.font_name = "sans-serif semi-bold";
     textFontParam.font_color= fontColor;
     textFontParam.font_size = 13;
 
@@ -1038,6 +1038,64 @@ GstPadProbeReturn CameraPipelineDay::osd_sink_pad_buffer_probe(GstPad *pad, GstP
                 self->addTextToDisplayMeta(display_meta3, centerX + 15, reticleY + 5, displayrangeMetersText);
                 g_free(displayrangeMetersText);*/
             }
+
+
+
+
+            //int centerX = RESOLUTION_WIDTH / 2; // Center of the screen (X-axis)
+            //int centerY = RESOLUTION_HEIGHT / 2; // Center of the screen (Y-axis)
+
+            // Calculate drift in meters
+            double windSpeed = 20;
+            double  rangeMeters = 500;
+            double driftMeters = (windSpeed * rangeMeters) / 800.0; // Adjust for bullet speed
+            double driftAngleRadians = atan(driftMeters / rangeMeters); // Drift angle in radians
+            double driftAngleDegrees = driftAngleRadians * (180.0 / M_PI); // Convert to degrees
+
+            // Convert to pixels using horizontal FoV and resolution
+            int driftPixels = static_cast<int>((driftAngleDegrees / FOV_DEGREES) * RESOLUTION_WIDTH);
+
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - driftPixels ,  centerY - 10, centerX - driftPixels , centerY + 10,
+                                       2, self->lineColor );
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + driftPixels ,  centerY - 10, centerX + driftPixels , centerY + 10,
+                                       2, self->lineColor );
+
+            // Draw markers
+
+            // Label markers
+            /*char* displayldriftText =   g_strdup_printf("L");
+            self->addTextToDisplayMeta(display_meta3, centerX - driftPixels, centerY - 15, displayldriftText);
+            g_free(displayldriftText);
+
+            char* displayrdriftText =   g_strdup_printf("R");
+            self->addTextToDisplayMeta(display_meta3, centerX + driftPixels - 30, centerY - 15, displayrdriftText);
+            g_free(displayrdriftText);*/
+
+
+            double targetSpeed = 5;
+            // Calculate lead in meters
+            double leadMeters = (targetSpeed * rangeMeters) / 800.0; // Adjust for bullet speed
+              driftAngleRadians = atan(leadMeters / rangeMeters); // Drift angle in radians
+              driftAngleDegrees = driftAngleRadians * (180.0 / M_PI); // Convert to degrees
+
+            // Convert to pixels using horizontal FoV and resolution
+            int leadPixels = static_cast<int>((driftAngleDegrees / FOV_DEGREES) * RESOLUTION_WIDTH);
+            // Convert to pixels
+
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX - leadPixels ,  centerY - 10, centerX - leadPixels , centerY + 10,
+                                       2, self->lineColor );
+            self->addLineToDisplayMeta(display_meta6,
+                                       centerX + leadPixels ,  centerY - 10, centerX + leadPixels , centerY + 10,
+                                       2, self->lineColor );
+            // Draw markers
+
+            // Label markers
+            //painter.drawText(centerX - leadPixels - 30, centerY - 15, "Lead Left");
+            //painter.drawText(centerX + leadPixels + 10, centerY - 15, "Lead Right");
+
         }
 
 
